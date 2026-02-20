@@ -5,69 +5,115 @@ interface AnalysisResultProps {
   isStreaming?: boolean;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderInline(value: string): string {
+  return escapeHtml(value).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+}
+
+function isOrderedListLine(line: string): boolean {
+  return /^\d+\.\s*/.test(line);
+}
+
+function isUnorderedListLine(line: string): boolean {
+  return /^[-*]\s*/.test(line);
+}
+
 export default function AnalysisResult({ content, isStreaming = false }: AnalysisResultProps) {
-  // 论文风格的排版渲染
-  const renderContent = (text: string) => {
-    if (!text) return '';
+  const renderContent = (text: string): string => {
+    if (!text) {
+      return '';
+    }
 
-    // 按双换行符分割成段落
-    const blocks = text.split(/\n\n+/);
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    const blocks: string[] = [];
+    let i = 0;
 
-    return blocks.map((block, blockIndex) => {
-      const trimmedBlock = block.trim();
-      if (!trimmedBlock) return '';
+    while (i < lines.length) {
+      const trimmed = lines[i].trim();
 
-      // 一级标题
-      if (trimmedBlock.startsWith('# ')) {
-        const title = trimmedBlock.substring(2);
-        return `<h1 class="title-1">${title}</h1>`;
+      if (!trimmed) {
+        i += 1;
+        continue;
       }
 
-      // 二级标题
-      if (trimmedBlock.startsWith('## ')) {
-        const title = trimmedBlock.substring(3);
-        return `<h2 class="title-2">${title}</h2>`;
+      if (trimmed.startsWith('### ')) {
+        blocks.push(`<h3 class="title-3">${renderInline(trimmed.slice(4))}</h3>`);
+        i += 1;
+        continue;
       }
 
-      // 三级标题
-      if (trimmedBlock.startsWith('### ')) {
-        const title = trimmedBlock.substring(4);
-        return `<h3 class="title-3">${title}</h3>`;
+      if (trimmed.startsWith('## ')) {
+        blocks.push(`<h2 class="title-2">${renderInline(trimmed.slice(3))}</h2>`);
+        i += 1;
+        continue;
       }
 
-      // 有序列表
-      if (trimmedBlock.match(/^\d+\. /m)) {
-        const lines = trimmedBlock.split('\n').filter(line => line.trim());
-        const items = lines.map(line => {
-          const match = line.match(/^(\d+)\. (.*)$/);
-          if (match) {
-            let itemContent = match[2];
-            itemContent = itemContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            return `<li><span class="num">${match[1]}.</span> ${itemContent}</li>`;
+      if (trimmed.startsWith('# ')) {
+        blocks.push(`<h1 class="title-1">${renderInline(trimmed.slice(2))}</h1>`);
+        i += 1;
+        continue;
+      }
+
+      if (isOrderedListLine(trimmed)) {
+        const items: string[] = [];
+        while (i < lines.length) {
+          const current = lines[i].trim();
+          const match = current.match(/^(\d+)\.\s*(.*)$/);
+          if (!match) {
+            break;
           }
-          return '';
-        }).join('');
-        return `<ol class="ordered">${items}</ol>`;
+          items.push(`<li><span class="num">${match[1]}.</span> ${renderInline(match[2])}</li>`);
+          i += 1;
+        }
+        blocks.push(`<ol class="ordered">${items.join('')}</ol>`);
+        continue;
       }
 
-      // 无序列表
-      if (trimmedBlock.match(/^[-*] /m)) {
-        const lines = trimmedBlock.split('\n').filter(line => line.trim());
-        const items = lines.map(line => {
-          let itemContent = line.replace(/^[-*] /, '');
-          itemContent = itemContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-          return `<li>${itemContent}</li>`;
-        }).join('');
-        return `<ul class="unordered">${items}</ul>`;
+      if (isUnorderedListLine(trimmed)) {
+        const items: string[] = [];
+        while (i < lines.length) {
+          const current = lines[i].trim();
+          const match = current.match(/^[-*]\s*(.*)$/);
+          if (!match) {
+            break;
+          }
+          items.push(`<li>${renderInline(match[1])}</li>`);
+          i += 1;
+        }
+        blocks.push(`<ul class="unordered">${items.join('')}</ul>`);
+        continue;
       }
 
-      // 普通段落
-      let para = trimmedBlock;
-      para = para.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      para = para.replace(/\n/g, '<br/>');
+      const paragraph: string[] = [];
+      while (i < lines.length) {
+        const current = lines[i].trim();
+        if (!current) {
+          break;
+        }
+        if (
+          current.startsWith('# ') ||
+          current.startsWith('## ') ||
+          current.startsWith('### ') ||
+          isOrderedListLine(current) ||
+          isUnorderedListLine(current)
+        ) {
+          break;
+        }
+        paragraph.push(renderInline(current));
+        i += 1;
+      }
+      blocks.push(`<p class="text">${paragraph.join('<br/>')}</p>`);
+    }
 
-      return `<p class="text">${para}</p>`;
-    }).join('');
+    return blocks.join('');
   };
 
   return (
@@ -78,13 +124,12 @@ export default function AnalysisResult({ content, isStreaming = false }: Analysi
         }}
       />
 
-      {isStreaming && (
-        <span className="cursor" />
-      )}
+      {isStreaming && <span className="cursor" />}
 
       <style jsx>{`
         .paper-style {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+            'Microsoft YaHei', sans-serif;
           font-size: 14px;
           line-height: 1.9;
           color: #222;
@@ -153,8 +198,14 @@ export default function AnalysisResult({ content, isStreaming = false }: Analysi
         }
 
         @keyframes blink {
-          0%, 50% { opacity: 1; }
-          51%, 100% { opacity: 0; }
+          0%,
+          50% {
+            opacity: 1;
+          }
+          51%,
+          100% {
+            opacity: 0;
+          }
         }
       `}</style>
     </div>
