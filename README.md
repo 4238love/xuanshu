@@ -325,16 +325,6 @@ npm start
 
 本工具仅供学习研究和娱乐参考使用，不构成任何专业建议。使用者应理性对待结果，不应将其作为重大决策的唯一依据。
 
-## 📄 开源协议
-
-本项目基于原 xuan-utils-pro 项目重构，仅供参考学习使用。
-
-## 🙏 致谢
-
-- 原项目：[xuan-utils-pro](https://gitee.com/shan-dai/xuan-utils-pro)
-- 农历库：lunar-javascript
-- UI 框架：Next.js + Tailwind CSS
-
 ---
 
 © 2024 易学排盘工具 · 传承传统文化 · 基于 Next.js 构建
