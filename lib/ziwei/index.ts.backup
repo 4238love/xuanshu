@@ -1,0 +1,231 @@
+import { Solar, Lunar } from 'lunar-javascript';
+import { ZiWeiSettings, ZiWeiResult } from '@/types';
+import { DI_ZHI } from '../constants';
+import { parseDate, formatDate } from '../utils/common';
+
+/**
+ * 紫微斗数排盘类
+ */
+export class ZiWeiPaiPan {
+  private settings: ZiWeiSettings;
+  private solar: Solar;
+  private lunar: Lunar;
+
+  // 十二宫位
+  private readonly SHI_ER_GONG = [
+    '命宫', '兄弟', '夫妻', '子女', '财帛', '疾厄',
+    '迁移', '奴仆', '官禄', '田宅', '福德', '父母'
+  ];
+
+  // 主星
+  private readonly ZHU_XING = [
+    '紫微', '天机', '太阳', '武曲', '天同', '廉贞',
+    '天府', '太阴', '贪狼', '巨门', '天相', '天梁',
+    '七杀', '破军'
+  ];
+
+  // 四化
+  private readonly SI_HUA = ['化禄', '化权', '化科', '化忌'];
+
+  constructor(settings: ZiWeiSettings) {
+    this.settings = settings;
+
+    // 解析日期
+    const date = parseDate(this.settings.date);
+
+    if (this.settings.dateType === 0) {
+      this.solar = Solar.fromDate(date);
+      this.lunar = this.solar.getLunar();
+    } else {
+      this.lunar = Lunar.fromDate(date);
+      this.solar = this.lunar.getSolar();
+    }
+  }
+
+  /**
+   * 获取排盘结果
+   */
+  public getPaiPan(): ZiWeiResult {
+    const year = this.lunar.getYear();
+    const month = this.lunar.getMonth();
+    const day = this.lunar.getDay();
+    const hour = this.settings.birthHour || this.solar.getHour();
+
+    // 计算五行局
+    const wuXingJu = this.getWuXingJu(year);
+
+    // 计算命宫
+    const mingGong = this.getMingGong(month, hour);
+
+    // 计算身宫
+    const shenGong = this.getShenGong(month, hour);
+
+    // 安排十二宫
+    const gongWei = this.arrangeGongWei(mingGong);
+
+    // 计算四化
+    const siHua = this.getSiHua(year);
+
+    const result: ZiWeiResult = {
+      solar: formatDate(this.solar.toDate()),
+      lunar: this.lunar.toString(),
+      name: this.settings.name,
+      sex: this.settings.sex === 1 ? '男' : '女',
+
+      wuXingJu,
+      mingGong,
+      shenGong,
+      gongWei,
+
+      huaLu: siHua.huaLu,
+      huaQuan: siHua.huaQuan,
+      huaKe: siHua.huaKe,
+      huaJi: siHua.huaJi,
+
+      huaLuJieDu: this.getHuaLuJieDu(siHua.huaLu, gongWei),
+      huaQuanJieDu: this.getHuaQuanJieDu(siHua.huaQuan, gongWei),
+      huaKeJieDu: this.getHuaKeJieDu(siHua.huaKe, gongWei),
+      huaJiJieDu: this.getHuaJiJieDu(siHua.huaJi, gongWei)
+    };
+
+    return result;
+  }
+
+  /**
+   * 计算五行局
+   */
+  private getWuXingJu(year: number): string {
+    const wuXingJuList = ['水二局', '木三局', '金四局', '土五局', '火六局'];
+    const index = year % 5;
+    return wuXingJuList[index];
+  }
+
+  /**
+   * 计算命宫
+   */
+  private getMingGong(month: number, hour: number): string {
+    // 简化算法：寅宫起正月，顺数至生月，再从生月起子时，逆数至生时
+    let gongIndex = (month + 1) % 12; // 寅宫起正月
+    const hourZhiIndex = Math.floor(hour / 2) % 12;
+    gongIndex = (gongIndex - hourZhiIndex + 12) % 12;
+    return DI_ZHI[gongIndex];
+  }
+
+  /**
+   * 计算身宫
+   */
+  private getShenGong(month: number, hour: number): string {
+    // 简化算法：寅宫起正月，顺数至生月，再从生月起子时，顺数至生时
+    let gongIndex = (month + 1) % 12;
+    const hourZhiIndex = Math.floor(hour / 2) % 12;
+    gongIndex = (gongIndex + hourZhiIndex) % 12;
+    return DI_ZHI[gongIndex];
+  }
+
+  /**
+   * 安排十二宫位
+   */
+  private arrangeGongWei(mingGong: string): { [key: string]: { name: string; zhuXing: string[]; siHua?: string[] } } {
+    const mingGongIndex = DI_ZHI.indexOf(mingGong);
+    const gongWei: { [key: string]: { name: string; zhuXing: string[]; siHua?: string[] } } = {};
+
+    for (let i = 0; i < 12; i++) {
+      const zhiIndex = (mingGongIndex + i) % 12;
+      const zhi = DI_ZHI[zhiIndex];
+      const gongName = this.SHI_ER_GONG[i];
+
+      // 简化：随机分配主星
+      const zhuXing = this.getGongZhuXing(i);
+
+      gongWei[zhi] = {
+        name: gongName,
+        zhuXing,
+        siHua: []
+      };
+    }
+
+    return gongWei;
+  }
+
+  /**
+   * 获取宫位主星（简化版）
+   */
+  private getGongZhuXing(gongIndex: number): string[] {
+    // 简化：每个宫位分配1-2颗主星
+    const starGroups = [
+      ['紫微', '天府'],
+      ['天机', '太阴'],
+      ['太阳', '天梁'],
+      ['武曲', '天相'],
+      ['天同', '巨门'],
+      ['廉贞', '贪狼'],
+      ['破军'],
+      ['七杀'],
+      ['紫微'],
+      ['天机'],
+      ['太阳'],
+      ['武曲']
+    ];
+
+    return starGroups[gongIndex] || [];
+  }
+
+  /**
+   * 计算四化
+   */
+  private getSiHua(year: number): { huaLu: string; huaQuan: string; huaKe: string; huaJi: string } {
+    // 简化：根据年份天干确定四化
+    const ganIndex = (year - 4) % 10;
+    const siHuaMap = [
+      { huaLu: '廉贞', huaQuan: '破军', huaKe: '武曲', huaJi: '太阳' }, // 甲
+      { huaLu: '天机', huaQuan: '天梁', huaKe: '紫微', huaJi: '太阴' }, // 乙
+      { huaLu: '天同', huaQuan: '天机', huaKe: '文昌', huaJi: '廉贞' }, // 丙
+      { huaLu: '太阴', huaQuan: '天同', huaKe: '天机', huaJi: '巨门' }, // 丁
+      { huaLu: '贪狼', huaQuan: '太阴', huaKe: '右弼', huaJi: '天机' }, // 戊
+      { huaLu: '武曲', huaQuan: '贪狼', huaKe: '天梁', huaJi: '文曲' }, // 己
+      { huaLu: '太阳', huaQuan: '武曲', huaKe: '太阴', huaJi: '天同' }, // 庚
+      { huaLu: '巨门', huaQuan: '太阳', huaKe: '文曲', huaJi: '文昌' }, // 辛
+      { huaLu: '天梁', huaQuan: '紫微', huaKe: '左辅', huaJi: '武曲' }, // 壬
+      { huaLu: '破军', huaQuan: '巨门', huaKe: '太阴', huaJi: '贪狼' }  // 癸
+    ];
+
+    return siHuaMap[ganIndex];
+  }
+
+  /**
+   * 化禄解读
+   */
+  private getHuaLuJieDu(huaLu: string, gongWei: any): string {
+    // 简化解读
+    return `化禄星落财帛宫，善于理财，财源滚滚。`;
+  }
+
+  /**
+   * 化权解读
+   */
+  private getHuaQuanJieDu(huaQuan: string, gongWei: any): string {
+    return `化权星落父母宫，父母强势，有矛盾。`;
+  }
+
+  /**
+   * 化科解读
+   */
+  private getHuaKeJieDu(huaKe: string, gongWei: any): string {
+    return `化科星落兄弟宫，兄弟有名声，助力多。`;
+  }
+
+  /**
+   * 化忌解读
+   */
+  private getHuaJiJieDu(huaJi: string, gongWei: any): string {
+    return `化忌星落命宫，不听劝，易焦虑，年少顺利。`;
+  }
+}
+
+/**
+ * 创建紫微斗数排盘
+ */
+export function createZiWeiPaiPan(settings: ZiWeiSettings): ZiWeiResult {
+  const paiPan = new ZiWeiPaiPan(settings);
+  return paiPan.getPaiPan();
+}

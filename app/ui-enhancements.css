@@ -1,0 +1,268 @@
+/* 打印样式 */
+@media print {
+  /* 隐藏不需要打印的元素 */
+  header,
+  footer,
+  nav,
+  .no-print,
+  button:not(.print-button) {
+    display: none !important;
+  }
+
+  /* 优化打印布局 */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* 移除阴影和渐变 */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* 确保内容适应页面 */
+  .print-content {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 20px !important;
+  }
+
+  /* 分页控制 */
+  .page-break {
+    page-break-after: always;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+}
+
+/* 无障碍支持 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* 焦点可见性 */
+*:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  * {
+    border-color: currentColor !important;
+  }
+}
+
+/* 减少动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 动画 */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s ease-out;
+}
+
+/* 响应式优化 */
+@media (max-width: 640px) {
+  /* 移动端字体调整 */
+  html {
+    font-size: 14px;
+  }
+
+  /* 移动端间距调整 */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* 移动端表格优化 */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  /* 移动端按钮优化 */
+  button {
+    min-height: 44px; /* iOS推荐的最小触摸目标 */
+  }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0a0;
+    --border-color: #404040;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+
+  .bg-white {
+    background-color: var(--bg-secondary) !important;
+  }
+
+  .text-gray-800 {
+    color: var(--text-primary) !important;
+  }
+
+  .text-gray-600 {
+    color: var(--text-secondary) !important;
+  }
+
+  .border-gray-300 {
+    border-color: var(--border-color) !important;
+  }
+}
+
+/* 加载骨架屏动画 */
+@keyframes skeleton-loading {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 0px,
+    #f8f8f8 40px,
+    #f0f0f0 80px
+  );
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+/* 虚拟滚动容器 */
+.virtual-scroll-container {
+  overflow-y: auto;
+  position: relative;
+}
+
+.virtual-scroll-content {
+  position: relative;
+}
+
+.virtual-scroll-item {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+/* 工具类 */
+.text-balance {
+  text-wrap: balance;
+}
+
+.text-pretty {
+  text-wrap: pretty;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Firefox滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #888 #f1f1f1;
+}

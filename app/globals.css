@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 导入UI增强样式 */
+@import './ui-enhancements.css';
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
