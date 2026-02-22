@@ -43,6 +43,11 @@
   - 四化星计算
   - 五行局判断
 
+- ✅ **AI 智能助手** - AI 辅助分析
+  - AI 分析排盘结果
+  - 可配置的 AI 设置
+  - 支持自定义 API
+
 ## 🎨 设计特点
 
 - **现代化界面** - 采用渐变色彩和流畅动画
@@ -204,8 +209,9 @@ new/
 
 - [API 文档](./docs/API.md) - 详细的API接口说明
 - [部署文档](./docs/DEPLOYMENT.md) - 开发和生产环境部署指南
+- [Docker 部署](./docs/DEPLOY_DOCKER_CADDY.md) - Docker + Caddy 部署指南
 - [用户手册](./docs/USER_GUIDE.md) - 完整的使用说明
-- [更新日志](./CHANGELOG.md) - 版本历史和迁移指南
+- [更新日志](./docs/CHANGELOG.md) - 版本历史和迁移指南
 
 ## 🔧 开发指南
 
@@ -265,6 +271,17 @@ node test-liuyao-complete.ts
 docker build -t suanming .
 docker run -p 3000:3000 suanming
 ```
+
+### Docker + Caddy 部署 (推荐)
+
+支持自动 HTTPS 配置：
+
+```bash
+# 使用 docker-compose 一键部署
+docker-compose up -d
+```
+
+详见 [Docker + Caddy 部署文档](./docs/DEPLOY_DOCKER_CADDY.md)
 
 ### 传统部署
 
