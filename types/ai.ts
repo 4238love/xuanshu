@@ -10,6 +10,9 @@ export type AIProvider =
   | 'minimax'       // MiniMax
   | 'custom';       // 用户自定义API
 
+// AI配置模式
+export type AIConfigMode = 'official' | 'custom';
+
 // AI配置接口
 export interface AIConfig {
   id: string;            // 配置唯一ID
@@ -28,10 +31,14 @@ export interface AIConfig {
 export interface AIConfigStorage {
   configs: AIConfig[];    // 所有配置列表
   activeConfigId: string | null; // 当前激活的配置ID
+  mode: AIConfigMode; // 当前使用的配置模式
 }
 
 // API配置存储键名
 export const AI_CONFIG_STORAGE_KEY = 'suanming_ai_config';
+
+// 默认AI配置模式
+export const DEFAULT_AI_CONFIG_MODE: AIConfigMode = 'official';
 
 // 默认AI配置（用于兼容旧版本）
 export const defaultAIConfig: AIConfig = {

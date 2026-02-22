@@ -8,7 +8,9 @@ import {
   PaiPanSystem,
 } from '@/types/ai';
 import {
+  buildAIProxyRequestBody,
   getAIConfig,
+  getAIConfigMode,
   isAIConfigValid,
 } from '@/lib/ai/config';
 import { buildSystemPrompt } from '@/lib/ai/analysisPrompts';
@@ -53,9 +55,10 @@ export function useAIAnalysis(currentSystem?: PaiPanSystem, currentChartData?: u
   // 发送消息（流式）
   const sendMessage = useCallback(async (content: string) => {
     const config = getAIConfig();
+    const mode = getAIConfigMode();
 
-    if (!isAIConfigValid(config)) {
-      setError('请先配置API Key和模型');
+    if (!isAIConfigValid(config, mode)) {
+      setError('请先配置自定义 API 的 Key、地址和模型');
       setStatus('error');
       return;
     }
@@ -102,22 +105,27 @@ export function useAIAnalysis(currentSystem?: PaiPanSystem, currentChartData?: u
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            baseURL: config.baseURL,
-            apiKey: config.apiKey,
-            model: config.model,
-            messages: historyMessages,
-            temperature: config.temperature ?? 0.7,
-            maxTokens: config.maxTokens ?? 2000,
-            stream: true,
-          }),
+          body: JSON.stringify(
+            buildAIProxyRequestBody({
+              mode,
+              config,
+              messages: historyMessages,
+              temperature: config.temperature ?? 0.7,
+              maxTokens: config.maxTokens ?? 2000,
+              stream: true,
+            })
+          ),
           signal: abortControllerRef.current.signal,
         }
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `请求失败: ${response.status}`);
+        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const errorMessage =
+          (typeof errorData.error === 'string' ? errorData.error : null) ??
+          (typeof errorData.message === 'string' ? errorData.message : null) ??
+          `请求失败: ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       // 处理流式响应
@@ -187,9 +195,10 @@ export function useAIAnalysis(currentSystem?: PaiPanSystem, currentChartData?: u
     data: unknown
   ) => {
     const config = getAIConfig();
+    const mode = getAIConfigMode();
 
-    if (!isAIConfigValid(config)) {
-      setError('请先配置API Key和模型');
+    if (!isAIConfigValid(config, mode)) {
+      setError('请先配置自定义 API 的 Key、地址和模型');
       setStatus('error');
       return;
     }
@@ -239,22 +248,27 @@ export function useAIAnalysis(currentSystem?: PaiPanSystem, currentChartData?: u
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            baseURL: config.baseURL,
-            apiKey: config.apiKey,
-            model: config.model,
-            messages: allMessages,
-            temperature: config.temperature ?? 0.7,
-            maxTokens: config.maxTokens ?? 2000,
-            stream: true,
-          }),
+          body: JSON.stringify(
+            buildAIProxyRequestBody({
+              mode,
+              config,
+              messages: allMessages,
+              temperature: config.temperature ?? 0.7,
+              maxTokens: config.maxTokens ?? 2000,
+              stream: true,
+            })
+          ),
           signal: abortControllerRef.current.signal,
         }
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `请求失败: ${response.status}`);
+        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const errorMessage =
+          (typeof errorData.error === 'string' ? errorData.error : null) ??
+          (typeof errorData.message === 'string' ? errorData.message : null) ??
+          `请求失败: ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       // 处理流式响应

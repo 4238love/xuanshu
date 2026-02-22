@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAIAnalysis } from '@/hooks/useAIAnalysis';
 import { QuickAnalysisOptions, PaiPanSystem, AnalysisType } from '@/types/ai';
-import { isAIConfigValid, getAIConfig } from '@/lib/ai/config';
+import { isAIConfigValid, getAIConfig, getAIConfigMode } from '@/lib/ai/config';
 import AIChatWindow from './AIChatWindow';
 import QuickPrompts from './QuickPrompts';
 import AISettingsPanel from './AISettingsPanel';
@@ -18,6 +18,7 @@ export default function AIAssistant({ system, chartData }: AIAssistantProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [isConfigValid, setIsConfigValid] = useState(false);
   const [currentConfigName, setCurrentConfigName] = useState('');
+  const [currentMode, setCurrentMode] = useState<'official' | 'custom'>('official');
   const [isExpanded, setIsExpanded] = useState(false);
 
   const {
@@ -29,12 +30,25 @@ export default function AIAssistant({ system, chartData }: AIAssistantProps) {
     clearMessages,
   } = useAIAnalysis(system, chartData);
 
+  const syncConfigState = useCallback(() => {
+    const mode = getAIConfigMode();
+    const config = getAIConfig();
+
+    setCurrentMode(mode);
+    if (mode === 'official') {
+      setIsConfigValid(true);
+      setCurrentConfigName('官方 API');
+      return;
+    }
+
+    setIsConfigValid(isAIConfigValid(config, mode));
+    setCurrentConfigName(config.name || '自定义 API');
+  }, []);
+
   // 检查配置是否有效
   useEffect(() => {
-    const config = getAIConfig();
-    setIsConfigValid(isAIConfigValid(config));
-    setCurrentConfigName(config.name);
-  }, [isOpen]);
+    syncConfigState();
+  }, [isOpen, syncConfigState]);
 
   // 切换面板
   const toggleOpen = useCallback(() => {
@@ -47,10 +61,8 @@ export default function AIAssistant({ system, chartData }: AIAssistantProps) {
 
   // 刷新配置（当设置保存后调用）
   const refreshConfig = useCallback(() => {
-    const config = getAIConfig();
-    setIsConfigValid(isAIConfigValid(config));
-    setCurrentConfigName(config.name);
-  }, []);
+    syncConfigState();
+  }, [syncConfigState]);
 
   // 切换设置面板
   const toggleSettings = useCallback(() => {
@@ -114,7 +126,7 @@ export default function AIAssistant({ system, chartData }: AIAssistantProps) {
               <span className="font-semibold">AI命理助手</span>
               {isConfigValid && currentConfigName && (
                 <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">
-                  {currentConfigName}
+                  {currentMode === 'official' ? '官方 API' : currentConfigName}
                 </span>
               )}
               {!isConfigValid && (

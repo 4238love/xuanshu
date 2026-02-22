@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: suanming-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      AI_PROXY_DEBUG: 0
+    expose:
+      - "3000"
+    networks:
+      - suanming-net
+
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: suanming-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - suanming-net
+
+networks:
+  suanming-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

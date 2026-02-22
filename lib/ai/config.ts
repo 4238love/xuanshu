@@ -1,5 +1,15 @@
 // AI API配置管理模块 - 支持多配置管理
-import { AIConfig, AIProvider, AIConfigStorage, AI_CONFIG_STORAGE_KEY, AIProviderBaseURLs, AIProviderDefaultModels, defaultAIConfig } from '@/types/ai';
+import {
+  AIConfig,
+  AIConfigMode,
+  AIProvider,
+  AIConfigStorage,
+  AI_CONFIG_STORAGE_KEY,
+  AIProviderBaseURLs,
+  AIProviderDefaultModels,
+  DEFAULT_AI_CONFIG_MODE,
+  defaultAIConfig,
+} from '@/types/ai';
 
 /**
  * 生成唯一ID
@@ -8,25 +18,49 @@ function generateId(): string {
   return `config_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
+export interface BuildAIProxyRequestBodyInput {
+  mode: AIConfigMode;
+  config: AIConfig;
+  messages: Array<{ role: string; content: string }>;
+  temperature?: number;
+  maxTokens?: number;
+  stream?: boolean;
+}
+
 /**
  * 获取AI配置存储结构
  * 从localStorage读取用户保存的所有配置
  */
 export function getAIConfigStorage(): AIConfigStorage {
+  const emptyStorage: AIConfigStorage = {
+    configs: [],
+    activeConfigId: null,
+    mode: DEFAULT_AI_CONFIG_MODE,
+  };
+
   if (typeof window === 'undefined') {
-    return { configs: [], activeConfigId: null };
+    return emptyStorage;
   }
 
   try {
     const stored = localStorage.getItem(AI_CONFIG_STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored) as Partial<AIConfigStorage>;
+      const configs = Array.isArray(parsed.configs) ? parsed.configs : [];
+      const fallbackMode: AIConfigMode =
+        configs.length > 0 ? 'custom' : DEFAULT_AI_CONFIG_MODE;
+
+      return {
+        configs,
+        activeConfigId: typeof parsed.activeConfigId === 'string' ? parsed.activeConfigId : null,
+        mode: parsed.mode === 'custom' || parsed.mode === 'official' ? parsed.mode : fallbackMode,
+      };
     }
   } catch (error) {
     console.error('读取AI配置失败:', error);
   }
 
-  return { configs: [], activeConfigId: null };
+  return emptyStorage;
 }
 
 /**
@@ -60,6 +94,22 @@ export function getAIConfig(): AIConfig {
     ...defaultAIConfig,
     id: generateId(),
   };
+}
+
+/**
+ * 获取当前AI配置模式
+ */
+export function getAIConfigMode(): AIConfigMode {
+  return getAIConfigStorage().mode;
+}
+
+/**
+ * 设置AI配置模式
+ */
+export function setAIConfigMode(mode: AIConfigMode): void {
+  const storage = getAIConfigStorage();
+  storage.mode = mode;
+  saveAIConfigStorage(storage);
 }
 
 /**
@@ -232,14 +282,19 @@ export function resetAIConfig(): void {
   const storage = getAIConfigStorage();
   storage.configs = [];
   storage.activeConfigId = null;
+  storage.mode = DEFAULT_AI_CONFIG_MODE;
   saveAIConfigStorage(storage);
 }
 
 /**
  * 检查API配置是否有效
  */
-export function isAIConfigValid(config: AIConfig): boolean {
-  return !!(config.apiKey && config.model && (config.provider === 'custom' ? config.baseURL : true));
+export function isAIConfigValid(config: AIConfig, mode: AIConfigMode = getAIConfigMode()): boolean {
+  if (mode === 'official') {
+    return true;
+  }
+
+  return !!(config.apiKey && config.model && config.baseURL);
 }
 
 /**
@@ -443,16 +498,51 @@ export function getAPIURL(config: AIConfig): string {
 }
 
 /**
+ * 构建发送到 /api/ai 代理的请求体
+ * 官方模式不携带 baseURL/apiKey/model，敏感信息仅存在服务端环境变量
+ */
+export function buildAIProxyRequestBody({
+  mode,
+  config,
+  messages,
+  temperature,
+  maxTokens,
+  stream = true,
+}: BuildAIProxyRequestBodyInput): Record<string, unknown> {
+  const baseBody: Record<string, unknown> = {
+    mode,
+    messages,
+    temperature: temperature ?? config.temperature ?? 0.7,
+    maxTokens: maxTokens ?? config.maxTokens ?? 2000,
+    stream,
+  };
+
+  if (mode === 'official') {
+    return baseBody;
+  }
+
+  return {
+    ...baseBody,
+    baseURL: config.baseURL,
+    apiKey: config.apiKey,
+    model: config.model,
+  };
+}
+
+/**
  * 测试API连接
  * 使用代理API来避免浏览器的CORS跨域问题
  */
-export async function testAPIConnection(config: AIConfig): Promise<{ success: boolean; message: string }> {
-  if (!isAIConfigValid(config)) {
-    return { success: false, message: '请填写完整的API配置信息' };
+export async function testAPIConnection(
+  config: AIConfig,
+  mode: AIConfigMode = getAIConfigMode()
+): Promise<{ success: boolean; message: string }> {
+  if (mode === 'custom' && !isAIConfigValid(config, mode)) {
+    return { success: false, message: '请填写完整的自定义API配置信息' };
   }
 
   // 百度文心一言特殊处理：需要先获取access_token
-  if (config.provider === 'qianfan') {
+  if (mode === 'custom' && config.provider === 'qianfan') {
     // apiKey格式应该是 "AK;SK" 或者需要用户分别填写AK和SK
     // 这里假设apiKey字段中AK和SK用分号分隔
     const [apiKey, secretKey] = config.apiKey.split(';');
@@ -476,8 +566,8 @@ export async function testAPIConnection(config: AIConfig): Promise<{ success: bo
       if (response.ok) {
         return { success: true, message: '连接成功！' };
       } else {
-        const error = await response.json().catch(() => ({}));
-        return { success: false, message: `连接失败: ${response.status} ${error.error_msg || ''}` };
+        const error = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        return { success: false, message: `连接失败: ${response.status} ${String(error.error_msg ?? '')}` };
       }
     } catch (error) {
       return { success: false, message: `连接失败: ${error instanceof Error ? error.message : '未知错误'}` };
@@ -491,22 +581,27 @@ export async function testAPIConnection(config: AIConfig): Promise<{ success: bo
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        baseURL: config.baseURL,
-        apiKey: config.apiKey,
-        model: config.model,
-        messages: [{ role: 'user', content: 'Hi' }],
-        temperature: config.temperature ?? 0.7,
-        maxTokens: config.maxTokens ?? 2000,
-        stream: false,
-      }),
+      body: JSON.stringify(
+        buildAIProxyRequestBody({
+          mode,
+          config,
+          messages: [{ role: 'user', content: 'Hi' }],
+          temperature: config.temperature ?? 0.7,
+          maxTokens: config.maxTokens ?? 2000,
+          stream: false,
+        })
+      ),
     });
 
     if (response.ok) {
       return { success: true, message: '连接成功！' };
     } else {
-      const error = await response.json().catch(() => ({}));
-      return { success: false, message: `连接失败: ${response.status} ${error.error || ''}` };
+      const error = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      const errorMessage =
+        (typeof error.error === 'string' ? error.error : null) ??
+        (typeof error.message === 'string' ? error.message : null) ??
+        '';
+      return { success: false, message: `连接失败: ${response.status} ${errorMessage}` };
     }
   } catch (error) {
     return { success: false, message: `连接失败: ${error instanceof Error ? error.message : '未知错误'}` };
