@@ -37,6 +37,12 @@ interface OfficialAIConfig {
   maxTokens: number;
 }
 
+interface OfficialAIMeta {
+  baseURLHost: string | null;
+  model: string | null;
+  thirdPartyHost: boolean;
+}
+
 const enableDebugLog =
   process.env.NODE_ENV !== 'production' && process.env.AI_PROXY_DEBUG !== '0';
 
@@ -61,7 +67,40 @@ function getOfficialAIConfig(): OfficialAIConfig {
     apiKey: process.env.AI_OFFICIAL_API_KEY?.trim() ?? '',
     model: process.env.AI_OFFICIAL_MODEL?.trim() ?? '',
     temperature: parseNumber(process.env.AI_OFFICIAL_TEMPERATURE, 0.7),
-    maxTokens: Math.max(1, Math.floor(parseNumber(process.env.AI_OFFICIAL_MAX_TOKENS, 2000))),
+    maxTokens: Math.max(1, Math.floor(parseNumber(process.env.AI_OFFICIAL_MAX_TOKENS, 1200000))),
+  };
+}
+
+function getBaseURLHost(baseURL: string): string | null {
+  if (!baseURL) return null;
+
+  try {
+    return new URL(baseURL).host;
+  } catch {
+    return null;
+  }
+}
+
+function buildOfficialAIMeta(config = getOfficialAIConfig()): OfficialAIMeta | null {
+  if (!isOfficialAIConfigured(config)) {
+    return null;
+  }
+
+  const baseURLHost = getBaseURLHost(config.baseURL);
+  const trustedHosts = new Set([
+    'api.openai.com',
+    'api.anthropic.com',
+    'aip.baidubce.com',
+    'dashscope.aliyuncs.com',
+    'api.hunyuan.cloud.tencent.com',
+    'api.moonshot.cn',
+    'open.bigmodel.cn',
+  ]);
+
+  return {
+    baseURLHost,
+    model: config.model || null,
+    thirdPartyHost: Boolean(baseURLHost && !trustedHosts.has(baseURLHost)),
   };
 }
 
@@ -143,7 +182,7 @@ function resolveUpstreamConfig(
       model,
       messages,
       temperature: body.temperature ?? 0.7,
-      maxTokens: body.maxTokens ?? 2000,
+      maxTokens: body.maxTokens ?? 1200000,
       stream,
     },
   };
@@ -151,8 +190,10 @@ function resolveUpstreamConfig(
 
 export async function GET() {
   const officialConfigured = isOfficialAIConfigured();
+  const officialMeta = buildOfficialAIMeta();
   return NextResponse.json({
     officialConfigured,
+    officialMeta,
     defaultMode: officialConfigured ? 'official' : 'custom',
   });
 }

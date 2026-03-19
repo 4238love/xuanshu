@@ -1,26 +1,53 @@
-// AI分析Hook
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
+  AIConfig,
+  AIConfigMode,
   AIMessage,
   AIAnalysisStatus,
-  UseAIAnalysisReturn,
   AnalysisType,
   PaiPanSystem,
+  QuickAnalysisOptions,
+  UseAIAnalysisReturn,
 } from '@/types/ai';
 import {
   buildAIProxyRequestBody,
   getAIConfig,
   getAIConfigMode,
+  getAIResponseValidationError,
   isAIConfigValid,
 } from '@/lib/ai/config';
 import { buildSystemPrompt } from '@/lib/ai/analysisPrompts';
-import { QuickAnalysisOptions } from '@/types/ai';
+
+type ChatMessagePayload = {
+  role: AIMessage['role'];
+  content: string;
+};
+
+type StreamReadResult = {
+  fullContent: string;
+  finishReason: string | null;
+  sawDone: boolean;
+};
+
+type StreamRequestInput = {
+  config: AIConfig;
+  mode: AIConfigMode;
+  messages: ChatMessagePayload[];
+  signal: AbortSignal;
+  onContent: (content: string) => void;
+};
 
 const ROLE_CONSTRAINT_PROMPT = [
-  '你现在就是一个专业的中国命理师，你只能以命理师的身份回答问题，不能提及任何关于AI、Kiro、编程、技术等与命理无关的内容。',
-  '回答时必须优先依据提供的排盘数据，不得忽略排盘信息按通用逻辑泛答。',
-  '回答结束后不要添加任何固定结束语。',
+  '你现在就是一位专业的中国命理师，只能以命理师身份回答问题，不要提及任何 AI、编程、模型或技术实现。',
+  '回答时必须优先依据提供的排盘数据，不得脱离盘面泛泛而谈。',
+  '回答结束后不要附加固定的免责声明或模板化收尾。',
 ].join('');
+
+const AUTO_CONTINUE_PROMPT = '继续，接着上文输出，不要重复已经写过的内容。';
+const TRUNCATION_NOTICE = '\n\n[当前回复已触发模型长度限制，可继续追问“继续”获取剩余内容。]';
+const TRUNCATION_FINISH_REASONS = new Set(['length', 'max_tokens']);
+const MAX_AUTO_CONTINUE_ATTEMPTS = 1;
+const DEFAULT_STREAM_MAX_TOKENS = 1200000;
 
 function composeSystemPrompt(system?: PaiPanSystem, data?: unknown): string {
   if (!system || data === undefined || data === null) {
@@ -31,305 +58,434 @@ function composeSystemPrompt(system?: PaiPanSystem, data?: unknown): string {
     const chartPrompt = buildSystemPrompt(system, data);
     return `${chartPrompt}\n\n${ROLE_CONSTRAINT_PROMPT}`;
   } catch (error) {
-    console.warn('[AI分析] 构建排盘提示词失败，已降级为通用提示词', error);
+    console.warn('[AI分析] 构建排盘提示词失败，已降级为通用提示词。', error);
     return ROLE_CONSTRAINT_PROMPT;
   }
 }
 
-export function useAIAnalysis(currentSystem?: PaiPanSystem, currentChartData?: unknown): UseAIAnalysisReturn {
+function extractDeltaAndFinishReason(parsed: unknown): {
+  delta: string;
+  finishReason: string | null;
+} {
+  if (!parsed || typeof parsed !== 'object') {
+    return { delta: '', finishReason: null };
+  }
+
+  const choices = (parsed as Record<string, unknown>).choices;
+  if (!Array.isArray(choices) || choices.length === 0) {
+    return { delta: '', finishReason: null };
+  }
+
+  const choice = choices[0];
+  if (!choice || typeof choice !== 'object') {
+    return { delta: '', finishReason: null };
+  }
+
+  const choiceRecord = choice as Record<string, unknown>;
+  const finishReason =
+    typeof choiceRecord.finish_reason === 'string' ? choiceRecord.finish_reason : null;
+
+  const deltaRecord =
+    choiceRecord.delta && typeof choiceRecord.delta === 'object'
+      ? (choiceRecord.delta as Record<string, unknown>)
+      : null;
+
+  if (!deltaRecord) {
+    return { delta: '', finishReason };
+  }
+
+  const content = deltaRecord.content;
+
+  if (typeof content === 'string') {
+    return { delta: content, finishReason };
+  }
+
+  if (Array.isArray(content)) {
+    const delta = content
+      .map((part) => {
+        if (typeof part === 'string') {
+          return part;
+        }
+
+        if (part && typeof part === 'object') {
+          const text = (part as Record<string, unknown>).text;
+          return typeof text === 'string' ? text : '';
+        }
+
+        return '';
+      })
+      .join('');
+
+    return { delta, finishReason };
+  }
+
+  return { delta: '', finishReason };
+}
+
+function extractEventData(rawEvent: string): string | null {
+  const dataLines = rawEvent
+    .replace(/\r/g, '')
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart());
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  return dataLines.join('\n');
+}
+
+function isTruncatedFinishReason(finishReason: string | null): boolean {
+  return finishReason ? TRUNCATION_FINISH_REASONS.has(finishReason) : false;
+}
+
+function shouldContinueStream(result: StreamReadResult): boolean {
+  if (isTruncatedFinishReason(result.finishReason)) {
+    return true;
+  }
+
+  return !result.sawDone && !result.finishReason && result.fullContent.trim().length > 0;
+}
+
+async function readStreamingChatResponse(
+  response: Response,
+  onContent: (content: string) => void
+): Promise<StreamReadResult> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('无法读取响应流');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullContent = '';
+  let finishReason: string | null = null;
+  let sawDone = false;
+
+  const consumeEvent = (rawEvent: string) => {
+    const data = extractEventData(rawEvent);
+    if (!data) {
+      return;
+    }
+
+    if (data === '[DONE]') {
+      sawDone = true;
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(data);
+      const eventResult = extractDeltaAndFinishReason(parsed);
+
+      if (eventResult.delta) {
+        fullContent += eventResult.delta;
+        onContent(fullContent);
+      }
+
+      if (eventResult.finishReason) {
+        finishReason = eventResult.finishReason;
+      }
+    } catch (error) {
+      console.warn('[AI分析] 解析流式事件失败，已忽略该事件。', {
+        error,
+        dataPreview: data.slice(0, 200),
+      });
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (value) {
+      buffer += decoder.decode(value, { stream: !done });
+    }
+
+    const events = buffer.split(/\n\n|\r\n\r\n/);
+    buffer = events.pop() ?? '';
+
+    for (const event of events) {
+      consumeEvent(event);
+    }
+
+    if (done) {
+      buffer += decoder.decode();
+      break;
+    }
+  }
+
+  const trailingEvent = buffer.trim();
+  if (trailingEvent) {
+    consumeEvent(trailingEvent);
+  }
+
+  return { fullContent, finishReason, sawDone };
+}
+
+async function requestStreamingChatCompletion({
+  config,
+  mode,
+  messages,
+  signal,
+  onContent,
+}: StreamRequestInput): Promise<StreamReadResult> {
+  const response = await fetch('/api/ai', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(
+      buildAIProxyRequestBody({
+        mode,
+        config,
+        messages,
+        temperature: mode === 'official' ? undefined : config.temperature ?? 0.7,
+        maxTokens:
+          mode === 'official'
+            ? DEFAULT_STREAM_MAX_TOKENS
+            : config.maxTokens ?? DEFAULT_STREAM_MAX_TOKENS,
+        stream: true,
+      })
+    ),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    const errorMessage =
+      (typeof errorData.error === 'string' ? errorData.error : null) ??
+      (typeof errorData.message === 'string' ? errorData.message : null) ??
+      `请求失败: ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  return readStreamingChatResponse(response, onContent);
+}
+
+async function streamAssistantReply({
+  config,
+  mode,
+  messages,
+  signal,
+  onContent,
+}: StreamRequestInput): Promise<StreamReadResult> {
+  let accumulatedContent = '';
+  let finishReason: string | null = null;
+  let sawDone = false;
+  let requestMessages = [...messages];
+
+  for (let attempt = 0; attempt <= MAX_AUTO_CONTINUE_ATTEMPTS; attempt += 1) {
+    const segment = await requestStreamingChatCompletion({
+      config,
+      mode,
+      messages: requestMessages,
+      signal,
+      onContent: (segmentContent) => {
+        onContent(accumulatedContent + segmentContent);
+      },
+    });
+
+    accumulatedContent += segment.fullContent;
+    finishReason = segment.finishReason;
+    sawDone = segment.sawDone;
+
+    if (!shouldContinueStream(segment) || attempt === MAX_AUTO_CONTINUE_ATTEMPTS) {
+      break;
+    }
+
+    requestMessages = [
+      ...requestMessages,
+      { role: 'assistant', content: accumulatedContent },
+      { role: 'user', content: AUTO_CONTINUE_PROMPT },
+    ];
+  }
+
+  if (accumulatedContent.trim() && (isTruncatedFinishReason(finishReason) || (!sawDone && !finishReason))) {
+    accumulatedContent = `${accumulatedContent}${TRUNCATION_NOTICE}`;
+    onContent(accumulatedContent);
+  }
+
+  return {
+    fullContent: accumulatedContent,
+    finishReason,
+    sawDone,
+  };
+}
+
+export function useAIAnalysis(
+  currentSystem?: PaiPanSystem,
+  currentChartData?: unknown
+): UseAIAnalysisReturn {
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [status, setStatus] = useState<AIAnalysisStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // 生成消息ID
-  const generateId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const generateId = () => `msg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-  // 清除消息
   const clearMessages = useCallback(() => {
     setMessages([]);
     setStatus('idle');
     setError(null);
   }, []);
 
-  // 发送消息（流式）
-  const sendMessage = useCallback(async (content: string) => {
-    const config = getAIConfig();
-    const mode = getAIConfigMode();
+  const updateAssistantMessage = useCallback((messageId: string, content: string) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === messageId ? { ...message, content } : message
+      )
+    );
+  }, []);
 
-    if (!isAIConfigValid(config, mode)) {
-      setError('请先配置自定义 API 的 Key、地址和模型');
-      setStatus('error');
-      return;
-    }
+  const removeMessage = useCallback((messageId: string) => {
+    setMessages((prev) => prev.filter((message) => message.id !== messageId));
+  }, []);
 
-    // 创建用户消息
-    const userMessage: AIMessage = {
-      id: generateId(),
-      role: 'user',
-      content,
-      timestamp: Date.now(),
-    };
+  const runAnalysisRequest = useCallback(
+    async (
+      config: AIConfig,
+      mode: AIConfigMode,
+      requestMessages: ChatMessagePayload[],
+      assistantMessageId: string
+    ) => {
+      try {
+        abortControllerRef.current = new AbortController();
 
-    // 添加用户消息
-    setMessages(prev => [...prev, userMessage]);
-    setStatus('analyzing');
-    setError(null);
-
-    // 创建助手消息（用于流式输出）
-    const assistantMessage: AIMessage = {
-      id: generateId(),
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-    };
-
-    setMessages(prev => [...prev, assistantMessage]);
-
-    const systemPrompt = composeSystemPrompt(currentSystem, currentChartData);
-    const historyMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content },
-    ];
-
-    try {
-      // 创建AbortController用于取消请求
-      abortControllerRef.current = new AbortController();
-
-      // 使用代理API来避免CORS问题
-      const response = await fetch(
-        '/api/ai',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(
-            buildAIProxyRequestBody({
-              mode,
-              config,
-              messages: historyMessages,
-              temperature: config.temperature ?? 0.7,
-              maxTokens: config.maxTokens ?? 2000,
-              stream: true,
-            })
-          ),
+        const result = await streamAssistantReply({
+          config,
+          mode,
+          messages: requestMessages,
           signal: abortControllerRef.current.signal,
+          onContent: (content) => {
+            updateAssistantMessage(assistantMessageId, content);
+          },
+        });
+
+        const validationError = getAIResponseValidationError(result.fullContent);
+        if (validationError) {
+          removeMessage(assistantMessageId);
+          setError(validationError);
+          setStatus('error');
+          return;
         }
-      );
 
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-        const errorMessage =
-          (typeof errorData.error === 'string' ? errorData.error : null) ??
-          (typeof errorData.message === 'string' ? errorData.message : null) ??
-          `请求失败: ${response.status}`;
-        throw new Error(errorMessage);
-      }
-
-      // 处理流式响应
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('无法读取响应流');
-      }
-
-      const decoder = new TextDecoder();
-      let fullContent = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content || '';
-              if (delta) {
-                fullContent += delta;
-                // 更新最后一条助手消息
-                setMessages(prev =>
-                  prev.map((msg, idx) =>
-                    idx === prev.length - 1
-                      ? { ...msg, content: fullContent }
-                      : msg
-                  )
-                );
-              }
-            } catch {
-              // 忽略解析错误
-            }
+        setStatus('completed');
+      } catch (err) {
+        if (err instanceof Error) {
+          if (err.name === 'AbortError') {
+            setStatus('idle');
+            removeMessage(assistantMessageId);
+          } else {
+            setError(err.message);
+            setStatus('error');
           }
-        }
-      }
-
-      setStatus('completed');
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          setStatus('idle');
-          // 删除正在生成的消息
-          setMessages(prev => prev.slice(0, -1));
         } else {
-          setError(err.message);
+          setError('发生未知错误');
           setStatus('error');
         }
-      } else {
-        setError('发生未知错误');
-        setStatus('error');
+      } finally {
+        abortControllerRef.current = null;
       }
-    }
-  }, [currentChartData, currentSystem, messages]);
+    },
+    [removeMessage, updateAssistantMessage]
+  );
 
-  // 发送快捷分析请求
-  const sendQuickAnalysis = useCallback(async (
-    type: AnalysisType,
-    system: PaiPanSystem,
-    data: unknown
-  ) => {
-    const config = getAIConfig();
-    const mode = getAIConfigMode();
+  const sendMessage = useCallback(
+    async (content: string) => {
+      const config = getAIConfig();
+      const mode = getAIConfigMode();
 
-    if (!isAIConfigValid(config, mode)) {
-      setError('请先配置自定义 API 的 Key、地址和模型');
-      setStatus('error');
-      return;
-    }
+      if (!isAIConfigValid(config, mode)) {
+        setError('请先配置自定义 API 的 Key、地址和模型');
+        setStatus('error');
+        return;
+      }
 
-    // 获取快捷分析选项
-    const options = QuickAnalysisOptions[system];
-    const option = options.find(o => o.id === type);
+      const userMessage: AIMessage = {
+        id: generateId(),
+        role: 'user',
+        content,
+        timestamp: Date.now(),
+      };
 
-    if (!option) {
-      setError('未找到该分析类型');
-      setStatus('error');
-      return;
-    }
+      const assistantMessage: AIMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+      };
 
-    // 构建系统提示词和用户消息
-    const systemPrompt = composeSystemPrompt(system, data);
-    const userContent = option.prompt || '请结合当前排盘进行分析。';
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setStatus('analyzing');
+      setError(null);
 
-    setStatus('analyzing');
-    setError(null);
-
-    // 创建助手消息（用于流式输出）
-    const assistantMessage: AIMessage = {
-      id: generateId(),
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-    };
-
-    setMessages(prev => [...prev, assistantMessage]);
-
-    const allMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: userContent },
-    ];
-
-    try {
-      // 创建AbortController用于取消请求
-      abortControllerRef.current = new AbortController();
-
-      // 使用代理API来避免CORS问题
-      const response = await fetch(
-        '/api/ai',
+      const requestMessages: ChatMessagePayload[] = [
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(
-            buildAIProxyRequestBody({
-              mode,
-              config,
-              messages: allMessages,
-              temperature: config.temperature ?? 0.7,
-              maxTokens: config.maxTokens ?? 2000,
-              stream: true,
-            })
-          ),
-          signal: abortControllerRef.current.signal,
-        }
-      );
+          role: 'system',
+          content: composeSystemPrompt(currentSystem, currentChartData),
+        },
+        ...messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+        { role: 'user', content },
+      ];
 
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-        const errorMessage =
-          (typeof errorData.error === 'string' ? errorData.error : null) ??
-          (typeof errorData.message === 'string' ? errorData.message : null) ??
-          `请求失败: ${response.status}`;
-        throw new Error(errorMessage);
-      }
+      await runAnalysisRequest(config, mode, requestMessages, assistantMessage.id);
+    },
+    [currentChartData, currentSystem, messages, runAnalysisRequest]
+  );
 
-      // 处理流式响应
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('无法读取响应流');
-      }
+  const sendQuickAnalysis = useCallback(
+    async (type: AnalysisType, system: PaiPanSystem, data: unknown) => {
+      const config = getAIConfig();
+      const mode = getAIConfigMode();
 
-      const decoder = new TextDecoder();
-      let fullContent = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content || '';
-              if (delta) {
-                fullContent += delta;
-                // 更新最后一条助手消息
-                setMessages(prev =>
-                  prev.map((msg, idx) =>
-                    idx === prev.length - 1
-                      ? { ...msg, content: fullContent }
-                      : msg
-                  )
-                );
-              }
-            } catch {
-              // 忽略解析错误
-            }
-          }
-        }
-      }
-
-      setStatus('completed');
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          setStatus('idle');
-          // 删除正在生成的消息
-          setMessages(prev => prev.slice(0, -1));
-        } else {
-          setError(err.message);
-          setStatus('error');
-        }
-      } else {
-        setError('发生未知错误');
+      if (!isAIConfigValid(config, mode)) {
+        setError('请先配置自定义 API 的 Key、地址和模型');
         setStatus('error');
+        return;
       }
-    }
-  }, [messages]);
+
+      const options = QuickAnalysisOptions[system];
+      const option = options.find((item) => item.id === type);
+
+      if (!option) {
+        setError('未找到该分析类型');
+        setStatus('error');
+        return;
+      }
+
+      const assistantMessage: AIMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+      };
+
+      setStatus('analyzing');
+      setError(null);
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      const requestMessages: ChatMessagePayload[] = [
+        {
+          role: 'system',
+          content: composeSystemPrompt(system, data),
+        },
+        ...messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+        {
+          role: 'user',
+          content: option.prompt || '请结合当前排盘进行分析。',
+        },
+      ];
+
+      await runAnalysisRequest(config, mode, requestMessages, assistantMessage.id);
+    },
+    [messages, runAnalysisRequest]
+  );
 
   return {
     messages,

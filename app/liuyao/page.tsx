@@ -1,24 +1,125 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { createLiuYaoPaiPan } from '@/lib/liuyao';
-import { LiuYaoSettings, LiuYaoResult } from '@/types';
-import { Card, InfoCard, Input, RadioGroup, Button, Badge } from '@/components/ui';
+import { LiuYaoResult, LiuYaoSettings } from '@/types';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input, RadioGroup } from '@/components/ui/Input';
+import { DateTimePicker } from '@/components/ui/FormControls';
 import { AIAssistant } from '@/components/ai';
+import { PageLayout as DossierPageLayout, WorkbenchPanel, WorkbenchStat } from '@/components/ui/page-layout';
+import {
+  DossierResultBlock,
+  DossierResultList,
+  DossierResultMetric,
+  DossierResultSection,
+  DossierResultTagList,
+} from '@/components/ui/result';
 
-// 神煞配置类型
 interface ShenShaConfig {
   [key: string]: boolean;
 }
 
-// 所有神煞列表
 const ALL_SHEN_SHA = {
   吉神: ['天乙贵人', '太极贵人', '文昌贵人', '福星贵人', '天厨贵人', '月德贵人', '天德贵人', '天元禄', '将星', '天喜', '天医', '谋星', '皇恩', '唐符国印', '天马'],
   凶神: ['劫煞', '灾煞', '阳刃', '飞刃'],
   半吉半凶: ['华盖', '咸池'],
-  动星: ['驿马']
+  动星: ['驿马'],
+} as const;
+
+const SHEN_SHA_KIND: Record<string, keyof typeof ALL_SHEN_SHA> = Object.fromEntries(
+  Object.entries(ALL_SHEN_SHA).flatMap(([kind, list]) => list.map((item) => [item, kind]))
+) as Record<string, keyof typeof ALL_SHEN_SHA>;
+
+const LIU_QIN_TONE: Record<string, 'default' | 'muted' | 'warning' | 'danger' | 'success'> = {
+  父母: 'default',
+  兄弟: 'muted',
+  子孙: 'success',
+  妻财: 'warning',
+  官鬼: 'danger',
 };
+
+const LIU_SHEN_TONE: Record<string, 'default' | 'muted' | 'warning' | 'danger' | 'success'> = {
+  青龙: 'success',
+  朱雀: 'danger',
+  勾陈: 'warning',
+  螣蛇: 'muted',
+  白虎: 'default',
+  玄武: 'default',
+};
+
+function HexagramPanel({
+  label,
+  symbol,
+  title,
+  type,
+  shen,
+  data,
+  showMarks = false,
+}: {
+  label: string;
+  symbol: string;
+  title: string;
+  type: string;
+  shen: string;
+  data: LiuYaoResult['liuYao']['benGua'] | LiuYaoResult['liuYao']['bianGua'];
+  showMarks?: boolean;
+}) {
+  return (
+    <DossierResultBlock title={label}>
+      <div className="text-center">
+        <div className="text-5xl text-[#8f5b2d]">{symbol}</div>
+        <div className="mt-2 text-2xl font-semibold tracking-[0.05em] text-[#2f2118]">{title}</div>
+        <div className="mt-1 text-sm text-[#77685c]">
+          {type} · 卦身 {shen}
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {[5, 4, 3, 2, 1, 0].map((index) => {
+          const shiYing = data.shiYing[index];
+          const yaoMark = showMarks && 'yaoAsMark' in data ? data.yaoAsMark[index] : '';
+          return (
+            <div
+              key={`${label}-${index}`}
+              className={`rounded-[20px] border px-4 py-4 shadow-[0_16px_28px_-24px_rgba(61,37,15,0.32)] ${
+                shiYing === '世'
+                  ? 'border-[#caa16c] bg-[linear-gradient(180deg,#fff5e6,#f5e4c9)]'
+                  : shiYing === '应'
+                    ? 'border-[#bfd4c0] bg-[linear-gradient(180deg,#f4fbf3,#e8f3e8)]'
+                    : 'border-[rgba(117,76,40,0.12)] bg-[rgba(255,252,247,0.88)]'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-[#8a6239]">{data.yaoMing[index]}</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-2xl font-semibold tracking-[0.25em] text-[#2f2118]">{data.yaoAs[index]}</span>
+                    {yaoMark ? <span className="text-sm font-medium text-[#8f5b2d]">{yaoMark}</span> : null}
+                    {shiYing ? <DossierResultTagList items={[shiYing]} tone={shiYing === '世' ? 'warning' : 'success'} /> : null}
+                  </div>
+                </div>
+                <div className="min-w-0 text-right">
+                  <div className="text-sm font-medium text-[#2f2118]">{data.ganZhi[index]}</div>
+                  <div className="mt-1 text-xs text-[#77685c]">{data.naYin[index]}</div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <DossierResultTagList items={[data.liuQin[index]]} tone={LIU_QIN_TONE[data.liuQin[index]] || 'default'} />
+                <DossierResultTagList items={[data.liuShen[index]]} tone={LIU_SHEN_TONE[data.liuShen[index]] || 'default'} />
+                {showMarks && 'fuShen' in data && data.fuShen[index] ? (
+                  <DossierResultTagList items={[`伏 ${data.fuShen[index]}`]} tone="muted" />
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </DossierResultBlock>
+  );
+}
 
 export default function LiuYaoPage() {
   const [settings, setSettings] = useState<LiuYaoSettings>({
@@ -27,68 +128,59 @@ export default function LiuYaoPage() {
     sex: 1,
     date: '2024-01-01 00:00:00',
     dateType: 0,
-    paiPanType: 1, // 默认自动起卦
-    manualYaoShu: [0, 0, 0, 0, 0, 0], // 默认全部少阳
+    paiPanType: 1,
+    manualYaoShu: [0, 0, 0, 0, 0, 0],
   });
-
   const [result, setResult] = useState<LiuYaoResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [expandedYao, setExpandedYao] = useState<number | null>(null);
+  const [expandedYao, setExpandedYao] = useState<string | null>(null);
   const [showShenShaConfig, setShowShenShaConfig] = useState(false);
   const [shenShaConfig, setShenShaConfig] = useState<ShenShaConfig>(() => {
-    // 从localStorage加载配置
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('liuyao_shensha_config');
       if (saved) {
         return JSON.parse(saved);
       }
     }
-    // 默认所有神煞都显示
+
     const defaultConfig: ShenShaConfig = {};
-    Object.values(ALL_SHEN_SHA).flat().forEach(sha => {
+    Object.values(ALL_SHEN_SHA).flat().forEach((sha) => {
       defaultConfig[sha] = true;
     });
     return defaultConfig;
   });
 
-  // 保存配置到localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('liuyao_shensha_config', JSON.stringify(shenShaConfig));
     }
   }, [shenShaConfig]);
 
-  // 过滤神煞
-  const filterShenSha = (shenShaList: string[]) => {
-    return shenShaList.filter(sha => shenShaConfig[sha] !== false);
-  };
+  const filterShenSha = (shenShaList: string[]) => shenShaList.filter((sha) => shenShaConfig[sha] !== false);
 
-  // 切换单个神煞
   const toggleShenSha = (sha: string) => {
-    setShenShaConfig(prev => ({
+    setShenShaConfig((prev) => ({
       ...prev,
-      [sha]: !prev[sha]
+      [sha]: !prev[sha],
     }));
   };
 
-  // 批量切换某类神煞
   const toggleCategory = (category: keyof typeof ALL_SHEN_SHA, enabled: boolean) => {
-    setShenShaConfig(prev => {
-      const newConfig = { ...prev };
-      ALL_SHEN_SHA[category].forEach(sha => {
-        newConfig[sha] = enabled;
+    setShenShaConfig((prev) => {
+      const next = { ...prev };
+      ALL_SHEN_SHA[category].forEach((sha) => {
+        next[sha] = enabled;
       });
-      return newConfig;
+      return next;
     });
   };
 
-  // 重置配置
   const resetConfig = () => {
-    const defaultConfig: ShenShaConfig = {};
-    Object.values(ALL_SHEN_SHA).flat().forEach(sha => {
-      defaultConfig[sha] = true;
+    const next: ShenShaConfig = {};
+    Object.values(ALL_SHEN_SHA).flat().forEach((sha) => {
+      next[sha] = true;
     });
-    setShenShaConfig(defaultConfig);
+    setShenShaConfig(next);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -106,1085 +198,490 @@ export default function LiuYaoPage() {
     }
   };
 
+  const allFilteredShenSha = useMemo(() => {
+    if (!result?.shenSha) return [];
+    return [
+      ...new Set([
+        ...filterShenSha(result.shenSha.year),
+        ...filterShenSha(result.shenSha.month),
+        ...filterShenSha(result.shenSha.day),
+        ...filterShenSha(result.shenSha.hour),
+      ]),
+    ];
+  }, [result, shenShaConfig]);
+  const paiPanTypeLabel =
+    settings.paiPanType === 2 ? '手动起卦' : settings.paiPanType === 0 ? '日期起卦' : '自动起卦';
+  const quickStats = [
+    { label: '占事', value: settings.occupy?.trim() || '未填写' },
+    { label: '性别', value: settings.sex === 1 ? '男占' : '女占' },
+    { label: '起卦模式', value: paiPanTypeLabel },
+    { label: '日期类型', value: settings.dateType === 0 ? '公历' : '农历' },
+  ];
+  const configNotes = [
+    { label: '起卦时刻', value: settings.date || '未设置' },
+    {
+      label: '手动爻数',
+      value:
+        settings.paiPanType === 2
+          ? (settings.manualYaoShu ?? []).map((item) => ['少阳', '少阴', '老阳', '老阴'][item] || '未设').join(' / ')
+          : '自动生成',
+    },
+  ];
+  const outputItems = ['本卦、变卦与辅助卦', '六爻、世应、六亲六神', '四柱、神煞与辅助信息', '爻辞与后续 AI 解读'];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50">
-      {/* 头部 */}
-      <header className="border-b border-blue-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="text-3xl">☷</div>
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                  六爻排盘
-                </h1>
-                <p className="text-xs text-gray-500">六爻占卜 · 预测吉凶</p>
-              </div>
-            </Link>
-            <Link
-              href="/"
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:shadow-lg transition-all"
-            >
-              返回首页
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          {/* 输入表单 */}
-          <Card title="输入信息" icon="📝" className="mb-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 姓名 */}
-                <Input
-                  label="姓名（可选）"
-                  type="text"
-                  value={settings.name}
-                  onChange={(e) => setSettings({ ...settings, name: e.target.value })}
-                  placeholder="请输入姓名"
-                  fullWidth
-                />
-
-                {/* 占事 */}
-                <Input
-                  label="占事（必填）"
-                  type="text"
-                  value={settings.occupy}
-                  onChange={(e) => setSettings({ ...settings, occupy: e.target.value })}
-                  placeholder="请输入占事内容"
-                  required
-                  fullWidth
-                />
-
-                {/* 性别 */}
-                <RadioGroup
-                  label="性别"
-                  name="sex"
-                  options={[
-                    { label: '男', value: 1 },
-                    { label: '女', value: 0 }
-                  ]}
-                  value={settings.sex}
-                  onChange={(value) => setSettings({ ...settings, sex: value })}
-                />
-
-                {/* 日期类型 */}
-                <RadioGroup
-                  label="日期类型"
-                  name="dateType"
-                  options={[
-                    { label: '公历', value: 0 },
-                    { label: '农历', value: 1 }
-                  ]}
-                  value={settings.dateType}
-                  onChange={(value) => setSettings({ ...settings, dateType: value })}
-                />
-              </div>
-
-              {/* 起卦模式 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  起卦模式
-                </label>
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { value: 1, label: '自动起卦', desc: '随机生成' },
-                    { value: 0, label: '日期起卦', desc: '根据时间' },
-                    { value: 2, label: '手动起卦', desc: '自定义爻数' }
-                  ].map((mode) => (
-                    <label
-                      key={mode.value}
-                      className={`flex items-center gap-2 cursor-pointer p-4 border-2 rounded-lg transition-all hover:border-blue-300 ${
-                        settings.paiPanType === mode.value
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 bg-white'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        value={mode.value}
-                        checked={settings.paiPanType === mode.value}
-                        onChange={() => setSettings({ ...settings, paiPanType: mode.value as 0 | 1 | 2 })}
-                        className="w-4 h-4 text-blue-600"
-                      />
-                      <div>
-                        <div className="font-medium">{mode.label}</div>
-                        <div className="text-xs text-gray-500">{mode.desc}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* 手动起卦输入 */}
-              {settings.paiPanType === 2 && (
-                <div className="p-6 bg-blue-50 rounded-xl">
-                  <h3 className="text-sm font-medium text-gray-700 mb-4">手动输入六爻</h3>
-                  <div className="grid grid-cols-6 gap-3">
-                    {['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'].map((yaoName, index) => (
-                      <div key={index}>
-                        <label className="block text-xs text-gray-600 mb-2 text-center">{yaoName}</label>
-                        <select
-                          value={settings.manualYaoShu?.[index] ?? 0}
-                          onChange={(e) => {
-                            const newManualYaoShu = [...(settings.manualYaoShu || [0, 0, 0, 0, 0, 0])];
-                            newManualYaoShu[index] = parseInt(e.target.value);
-                            setSettings({ ...settings, manualYaoShu: newManualYaoShu });
-                          }}
-                          className="w-full px-2 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value={0}>少阳 —</option>
-                          <option value={1}>少阴 - -</option>
-                          <option value={2}>老阳 ○</option>
-                          <option value={3}>老阴 ×</option>
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-4 text-xs text-gray-500">
-                    💡 提示：少阳/少阴为不动爻，老阳/老阴为动爻（会变化）
-                  </p>
-                </div>
-              )}
-
-              {/* 日期时间 */}
+    <DossierPageLayout
+      title="六爻排盘"
+      hasResult={Boolean(result)}
+      rail={
+        <Card title="输入信息" icon="📝">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <Input
-                label="起卦日期时间"
+                label="姓名（可选）"
                 type="text"
-                value={settings.date}
-                onChange={(e) => setSettings({ ...settings, date: e.target.value })}
-                placeholder="格式：2024-01-01 00:00:00"
-                helperText="格式：年-月-日 时:分:秒（例如：2024-01-01 08:30:00）"
+                value={settings.name}
+                onChange={(e) => setSettings({ ...settings, name: e.target.value })}
+                placeholder="请输入姓名"
                 fullWidth
               />
-
-              {/* 提交按钮 */}
-              <Button
-                type="submit"
-                loading={loading}
+              <Input
+                label="占事（必填）"
+                type="text"
+                value={settings.occupy}
+                onChange={(e) => setSettings({ ...settings, occupy: e.target.value })}
+                placeholder="请输入占事内容"
+                required
                 fullWidth
-                size="lg"
-                gradient="from-blue-500 to-cyan-500"
+              />
+              <RadioGroup
+                label="性别"
+                name="sex"
+                options={[
+                  { label: '男', value: 1 },
+                  { label: '女', value: 0 },
+                ]}
+                value={settings.sex}
+                onChange={(value) => setSettings({ ...settings, sex: value as 0 | 1 })}
+              />
+              <RadioGroup
+                label="日期类型"
+                name="dateType"
+                options={[
+                  { label: '公历', value: 0 },
+                  { label: '农历', value: 1 },
+                ]}
+                value={settings.dateType}
+                onChange={(value) => setSettings({ ...settings, dateType: value as 0 | 1 })}
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-[11px] uppercase tracking-[0.24em] text-[#8f6a45]">起卦模式</label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {[
+                  { value: 1, label: '自动起卦', desc: '随机生成' },
+                  { value: 0, label: '日期起卦', desc: '根据时间' },
+                  { value: 2, label: '手动起卦', desc: '自定义爻数' },
+                ].map((mode) => (
+                  <label
+                    key={mode.value}
+                    className={`cursor-pointer rounded-[20px] border px-4 py-4 transition ${
+                      settings.paiPanType === mode.value
+                        ? 'border-[#4b2e19] bg-[linear-gradient(135deg,#4b2e19,#8f5b2d)] text-white shadow-[0_18px_36px_-24px_rgba(66,37,13,0.9)]'
+                        : 'border-[#d9c9b4] bg-[rgba(255,252,247,0.88)] text-[#4b3a2c] hover:border-[#b98c5e] hover:bg-[#fff8ef]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      value={mode.value}
+                      checked={settings.paiPanType === mode.value}
+                      onChange={() => setSettings({ ...settings, paiPanType: mode.value as 0 | 1 | 2 })}
+                      className="sr-only"
+                    />
+                    <div className="font-medium">{mode.label}</div>
+                    <div className={`mt-1 text-xs ${settings.paiPanType === mode.value ? 'text-stone-200' : 'text-[#77685c]'}`}>
+                      {mode.desc}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {settings.paiPanType === 2 ? (
+              <div className="rounded-[24px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,250,242,0.86)] p-5 shadow-[0_16px_32px_-26px_rgba(61,37,15,0.32)]">
+                <h3 className="text-sm font-medium tracking-[0.03em] text-[#2f2118]">手动输入六爻</h3>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                  {['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'].map((yaoName, index) => (
+                    <div key={yaoName}>
+                      <label className="mb-2 block text-xs text-[#77685c]">{yaoName}</label>
+                      <select
+                        value={settings.manualYaoShu?.[index] ?? 0}
+                        onChange={(e) => {
+                          const next = [...(settings.manualYaoShu || [0, 0, 0, 0, 0, 0])];
+                          next[index] = parseInt(e.target.value, 10);
+                          setSettings({ ...settings, manualYaoShu: next });
+                        }}
+                        className="w-full rounded-[16px] border border-[#d9c9b4] bg-[rgba(255,252,246,0.92)] px-3 py-2 text-sm text-stone-900"
+                      >
+                        <option value={0}>少阳 —</option>
+                        <option value={1}>少阴 - -</option>
+                        <option value={2}>老阳 ○</option>
+                        <option value={3}>老阴 ×</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-4 text-xs text-[#77685c]">少阳/少阴为不动爻，老阳/老阴为动爻。</p>
+              </div>
+            ) : null}
+
+            <DateTimePicker
+              label="起卦日期时间"
+              value={settings.date}
+              onChange={(value) => setSettings({ ...settings, date: value })}
+              dateType={settings.dateType}
+              helperText="格式：年-月-日 时:分:秒（例如：2024-01-01 08:30:00）"
+              pickerOnly
+            />
+
+            <Button type="submit" loading={loading} fullWidth size="lg">
+              {loading ? '起卦中...' : '开始起卦'}
+            </Button>
+          </form>
+        </Card>
+      }
+      emptySidebar={
+        <>
+          <WorkbenchPanel
+            eyebrow="当前配置"
+            title="起卦工作台"
+            description="未起卦时右侧保留关键摘要，桌面端不再出现空着的结果区。"
+          >
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              {quickStats.map((item) => <WorkbenchStat key={item.label} label={item.label} value={item.value} />)}
+            </div>
+            <div className="mt-5 grid gap-3">
+              {configNotes.map((item) => (
+                <div key={item.label} className="flex items-start justify-between gap-4 rounded-[18px] border border-[#d8cab6] bg-white/72 px-4 py-3">
+                  <span className="text-xs uppercase tracking-[0.22em] text-[#8b6641]">{item.label}</span>
+                  <span className="text-right text-sm font-medium text-[#2f2118]">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </WorkbenchPanel>
+
+          <WorkbenchPanel
+            eyebrow="起卦输出"
+            title="提交后会展开这些内容"
+            description="结果区会直接进入卦象结构、六爻细目和神煞配置。"
+            tone="dark"
+          >
+            <div className="space-y-3">
+              {outputItems.map((item, index) => (
+                <div key={item} className="flex items-start gap-3 rounded-[18px] border border-white/12 bg-white/8 px-4 py-3">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/22 bg-white/10 text-xs font-semibold text-white">
+                    {index + 1}
+                  </span>
+                  <span className="text-sm leading-6 text-white/88">{item}</span>
+                </div>
+              ))}
+            </div>
+          </WorkbenchPanel>
+        </>
+      }
+      stage={
+        <>
+          {result ? (
+            <div className="space-y-6">
+              <DossierResultSection
+                eyebrow="Hexagram Overview"
+                title="卦象结果"
+                description="本卦、变卦和辅助卦先放进同一张总览页，先把卦架看清，再读六爻细目。"
               >
-                {loading ? '起卦中...' : '开始起卦'}
-              </Button>
-            </form>
-          </Card>
-
-          {/* 排盘结果 */}
-          {result && (
-            <div className="space-y-8">
-              {/* 基础信息 */}
-              <Card title="卦象结果" icon="☯">
-                <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">基础信息</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    {result.name && (
-                      <div>
-                        <span className="text-gray-600">姓名：</span>
-                        <span className="font-medium">{result.name}</span>
-                      </div>
-                    )}
-                    {result.occupy && (
-                      <div>
-                        <span className="text-gray-600">占事：</span>
-                        <span className="font-medium">{result.occupy}</span>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-gray-600">公历：</span>
-                      <span className="font-medium">{result.solar}</span>
-                    </div>
-                    <div className="col-span-2 md:col-span-3">
-                      <span className="text-gray-600">农历：</span>
-                      <span className="font-medium">{result.lunar}</span>
-                    </div>
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {result.name ? <DossierResultMetric label="姓名" value={result.name} /> : null}
+                    {result.occupy ? <DossierResultMetric label="占事" value={result.occupy} /> : null}
+                    <DossierResultMetric label="本卦" value={result.benGua} note={result.benGuaType} />
+                    <DossierResultMetric label="变卦" value={result.bianGua} note={result.bianGuaType} />
+                    <DossierResultMetric label="互卦" value={result.huGua} />
+                    <DossierResultMetric label="错卦" value={result.cuoGua} />
+                    <DossierResultMetric label="综卦" value={result.zongGua} />
+                    <DossierResultMetric label="伏卦" value={result.fuGua} />
                   </div>
+
+                  <DossierResultBlock title="起卦底稿">
+                    <DossierResultList
+                      items={[
+                        { label: '公历', value: result.solar },
+                        { label: '农历', value: result.lunar },
+                        { label: '本卦 / 变卦', value: `${result.benGua} / ${result.bianGua}` },
+                        { label: '卦身', value: `${result.benGuaShen} / ${result.bianGuaShen}` },
+                      ]}
+                    />
+                    <div className="mt-4">
+                      <DossierResultTagList
+                        items={[
+                          `本卦 ${result.benGuaAs}`,
+                          `互卦 ${result.huGuaAs}`,
+                          `错卦 ${result.cuoGuaAs}`,
+                          `综卦 ${result.zongGuaAs}`,
+                          `伏卦 ${result.fuGuaAs}`,
+                        ]}
+                      />
+                    </div>
+                  </DossierResultBlock>
                 </div>
+              </DossierResultSection>
 
-                {/* 卦象展示 - 传统纳甲风格 */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">卦象</h3>
+              <DossierResultSection
+                eyebrow="Main Frames"
+                title="本卦与变卦"
+                description="六爻主盘回到同一套纸感卡片，世应、六亲和六神都用统一标签系统。"
+              >
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <HexagramPanel
+                    label="本卦"
+                    symbol={result.benGuaAs}
+                    title={result.benGua}
+                    type={result.benGuaType}
+                    shen={result.benGuaShen}
+                    data={result.liuYao.benGua}
+                    showMarks
+                  />
+                  <HexagramPanel
+                    label="变卦"
+                    symbol={result.bianGuaAs}
+                    title={result.bianGua}
+                    type={result.bianGuaType}
+                    shen={result.bianGuaShen}
+                    data={result.liuYao.bianGua}
+                  />
+                </div>
+              </DossierResultSection>
 
-                  {/* 本卦与变卦并排 - 传统卦盘样式 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* 本卦 */}
-                    <div className="relative">
-                      {/* 传统八卦边框装饰 */}
-                      <div className="absolute -inset-2 bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 rounded-2xl opacity-30"></div>
-                      <div className="relative bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200 p-6">
-                        <div className="text-center mb-4">
-                          <span className="inline-block px-4 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-bold rounded-full shadow-md">
-                            本卦
-                          </span>
+              <DossierResultSection
+                eyebrow="Pillars"
+                title="四柱与辅助信息"
+                description="四柱、节气和辅助信息集中收纳，避免结果区被过多主题块打散。"
+              >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <DossierResultBlock title="四柱干支">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      {[
+                        ['年柱', result.ganZhi.year, filterShenSha(result.shenSha?.year || [])],
+                        ['月柱', result.ganZhi.month, filterShenSha(result.shenSha?.month || [])],
+                        ['日柱', result.ganZhi.day, filterShenSha(result.shenSha?.day || [])],
+                        ['时柱', result.ganZhi.hour, filterShenSha(result.shenSha?.hour || [])],
+                      ].map(([label, value, shensha]) => (
+                        <div
+                          key={label as string}
+                          className="rounded-[22px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,252,247,0.88)] p-4"
+                        >
+                          <div className="text-[11px] uppercase tracking-[0.22em] text-[#8a6239]">{label}</div>
+                          <div className="mt-3 text-2xl font-semibold tracking-[0.05em] text-[#2f2118]">{value as string}</div>
+                          <div className="mt-3">
+                            <DossierResultTagList items={shensha as string[]} tone="muted" />
+                          </div>
                         </div>
-
-                        {/* 卦名与卦象 */}
-                        <div className="text-center mb-6">
-                          <div className="text-5xl mb-2 text-blue-600">{result.benGuaAs}</div>
-                          <div className="text-2xl font-bold text-gray-800">{result.benGua}</div>
-                          <div className="text-sm text-gray-500 mt-1">{result.benGuaType} · 卦身{result.benGuaShen}</div>
-                        </div>
-
-                        {/* 六爻从下往上展示 - 传统竖排样式 */}
-                        <div className="space-y-2">
-                          {[5, 4, 3, 2, 1, 0].map((index) => (
-                            <div
-                              key={`ben-${index}`}
-                              className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
-                                result.liuYao.benGua.shiYing[index]
-                                  ? result.liuYao.benGua.shiYing[index] === '世'
-                                    ? 'bg-amber-50 border-amber-400 shadow-sm'
-                                    : 'bg-green-50 border-green-400 shadow-sm'
-                                  : 'bg-white border-gray-200'
-                              }`}
-                            >
-                              {/* 左侧：爻位和符号 */}
-                              <div className="flex items-center gap-3">
-                                <div className="text-xs text-gray-500 w-8">
-                                  {index === 5 ? '上九' : index === 4 ? '九五' : index === 3 ? '九四' : index === 2 ? '九三' : index === 1 ? '九二' : '初九'}
-                                </div>
-                                <div className={`text-2xl font-bold tracking-widest ${
-                                  result.liuYao.benGua.yaoAs[index] === '—' ? 'text-blue-600' : 'text-red-500'
-                                }`}>
-                                  {result.liuYao.benGua.yaoAs[index]}
-                                  {result.liuYao.benGua.yaoAsMark[index] && (
-                                    <span className="text-red-600 ml-1">{result.liuYao.benGua.yaoAsMark[index]}</span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* 中间：纳甲干支和六亲 */}
-                              <div className="flex-1 text-center">
-                                <div className="text-sm font-bold text-gray-700">
-                                  {result.liuYao.benGua.ganZhi[index]}
-                                </div>
-                                <div className={`text-xs mt-0.5 px-2 py-0.5 rounded-full inline-block ${
-                                  result.liuYao.benGua.liuQin[index] === '父母' ? 'bg-blue-100 text-blue-700' :
-                                  result.liuYao.benGua.liuQin[index] === '兄弟' ? 'bg-gray-100 text-gray-700' :
-                                  result.liuYao.benGua.liuQin[index] === '子孙' ? 'bg-green-100 text-green-700' :
-                                  result.liuYao.benGua.liuQin[index] === '妻财' ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-red-100 text-red-700'
-                                }`}>
-                                  {result.liuYao.benGua.liuQin[index]}
-                                </div>
-                              </div>
-
-                              {/* 右侧：六神和世应 */}
-                              <div className="flex items-center gap-2">
-                                <div className={`text-xs px-2 py-1 rounded ${
-                                  result.liuYao.benGua.liuShen[index] === '青龙' ? 'bg-green-100 text-green-700' :
-                                  result.liuYao.benGua.liuShen[index] === '朱雀' ? 'bg-red-100 text-red-700' :
-                                  result.liuYao.benGua.liuShen[index] === '勾陈' ? 'bg-amber-100 text-amber-700' :
-                                  result.liuYao.benGua.liuShen[index] === '螣蛇' ? 'bg-purple-100 text-purple-700' :
-                                  result.liuYao.benGua.liuShen[index] === '白虎' ? 'bg-white text-gray-700 border border-gray-300' :
-                                  'bg-cyan-100 text-cyan-700'
-                                }`}>
-                                  {result.liuYao.benGua.liuShen[index]}
-                                </div>
-                                {result.liuYao.benGua.shiYing[index] && (
-                                  <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                    result.liuYao.benGua.shiYing[index] === '世'
-                                      ? 'bg-amber-500 text-white'
-                                      : 'bg-green-500 text-white'
-                                  }`}>
-                                    {result.liuYao.benGua.shiYing[index]}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      ))}
                     </div>
+                  </DossierResultBlock>
 
-                    {/* 变卦 */}
-                    <div className="relative">
-                      <div className="absolute -inset-2 bg-gradient-to-r from-orange-600 via-red-500 to-pink-500 rounded-2xl opacity-30"></div>
-                      <div className="relative bg-gradient-to-br from-orange-50 to-red-50 rounded-xl border-2 border-orange-200 p-6">
-                        <div className="text-center mb-4">
-                          <span className="inline-block px-4 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-bold rounded-full shadow-md">
-                            变卦
-                          </span>
-                        </div>
+                  <DossierResultBlock title="辅助信息">
+                    <DossierResultList
+                      items={[
+                        { label: '上一节 / 下一节', value: result.jieQi ? `${result.jieQi.prevJie} / ${result.jieQi.nextJie}` : '暂无' },
+                        { label: '上一气 / 下一气', value: result.jieQi ? `${result.jieQi.prevQi} / ${result.jieQi.nextQi}` : '暂无' },
+                        { label: '月将 / 月将神', value: `${result.yueJiang || '暂无'} / ${result.yueJiangShen || '暂无'}` },
+                        { label: '空亡', value: result.kongWang?.join('、') || '暂无' },
+                        { label: '五不遇时', value: result.wuBuYuShi ? '是' : '否' },
+                        { label: '星期 / 季节', value: `${result.xingQi || '暂无'} / ${result.jiJie || '暂无'}` },
+                        { label: '生肖 / 星座', value: `${result.shengXiao || '暂无'} / ${result.xingZuo || '暂无'}` },
+                        { label: '月相 / 造', value: `${result.yueXiang || '暂无'} / ${result.zao || '暂无'}` },
+                      ]}
+                    />
+                  </DossierResultBlock>
+                </div>
+              </DossierResultSection>
 
-                        {/* 卦名与卦象 */}
-                        <div className="text-center mb-6">
-                          <div className="text-5xl mb-2 text-orange-600">{result.bianGuaAs}</div>
-                          <div className="text-2xl font-bold text-gray-800">{result.bianGua}</div>
-                          <div className="text-sm text-gray-500 mt-1">{result.bianGuaType} · 卦身{result.bianGuaShen}</div>
-                        </div>
-
-                        {/* 六爻从下往上展示 */}
-                        <div className="space-y-2">
-                          {[5, 4, 3, 2, 1, 0].map((index) => (
-                            <div
-                              key={`bian-${index}`}
-                              className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
-                                result.liuYao.bianGua.shiYing[index]
-                                  ? result.liuYao.bianGua.shiYing[index] === '世'
-                                    ? 'bg-amber-50 border-amber-400 shadow-sm'
-                                    : 'bg-green-50 border-green-400 shadow-sm'
-                                  : 'bg-white border-gray-200'
-                              }`}
-                            >
-                              {/* 左侧：爻位和符号 */}
-                              <div className="flex items-center gap-3">
-                                <div className="text-xs text-gray-500 w-8">
-                                  {index === 5 ? '上九' : index === 4 ? '九五' : index === 3 ? '九四' : index === 2 ? '九三' : index === 1 ? '九二' : '初九'}
-                                </div>
-                                <div className={`text-2xl font-bold tracking-widest ${
-                                  result.liuYao.bianGua.yaoAs[index] === '—' ? 'text-orange-600' : 'text-red-500'
-                                }`}>
-                                  {result.liuYao.bianGua.yaoAs[index]}
-                                </div>
-                              </div>
-
-                              {/* 中间：纳甲干支和六亲 */}
-                              <div className="flex-1 text-center">
-                                <div className="text-sm font-bold text-gray-700">
-                                  {result.liuYao.bianGua.ganZhi[index]}
-                                </div>
-                                <div className={`text-xs mt-0.5 px-2 py-0.5 rounded-full inline-block ${
-                                  result.liuYao.bianGua.liuQin[index] === '父母' ? 'bg-blue-100 text-blue-700' :
-                                  result.liuYao.bianGua.liuQin[index] === '兄弟' ? 'bg-gray-100 text-gray-700' :
-                                  result.liuYao.bianGua.liuQin[index] === '子孙' ? 'bg-green-100 text-green-700' :
-                                  result.liuYao.bianGua.liuQin[index] === '妻财' ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-red-100 text-red-700'
-                                }`}>
-                                  {result.liuYao.bianGua.liuQin[index]}
-                                </div>
-                              </div>
-
-                              {/* 右侧：六神和世应 */}
-                              <div className="flex items-center gap-2">
-                                <div className={`text-xs px-2 py-1 rounded ${
-                                  result.liuYao.bianGua.liuShen[index] === '青龙' ? 'bg-green-100 text-green-700' :
-                                  result.liuYao.bianGua.liuShen[index] === '朱雀' ? 'bg-red-100 text-red-700' :
-                                  result.liuYao.bianGua.liuShen[index] === '勾陈' ? 'bg-amber-100 text-amber-700' :
-                                  result.liuYao.bianGua.liuShen[index] === '螣蛇' ? 'bg-purple-100 text-purple-700' :
-                                  result.liuYao.bianGua.liuShen[index] === '白虎' ? 'bg-white text-gray-700 border border-gray-300' :
-                                  'bg-cyan-100 text-cyan-700'
-                                }`}>
-                                  {result.liuYao.bianGua.liuShen[index]}
-                                </div>
-                                {result.liuYao.bianGua.shiYing[index] && (
-                                  <span className={`text-xs font-bold px-2 py-1 rounded ${
-                                    result.liuYao.bianGua.shiYing[index] === '世'
-                                      ? 'bg-amber-500 text-white'
-                                      : 'bg-green-500 text-white'
-                                  }`}>
-                                    {result.liuYao.bianGua.shiYing[index]}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+              <DossierResultSection
+                eyebrow="Yao Detail"
+                title="六爻详析"
+                description="保留爻辞展开交互，外观统一回到当前页面的信息块样式。"
+              >
+                {result.liuQinQueShi?.length ? (
+                  <div className="mb-4">
+                    <DossierResultTagList items={result.liuQinQueShi.map((item) => `缺 ${item}`)} tone="danger" />
                   </div>
-                </div>
+                ) : null}
 
-                {/* 变化卦象 */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div className="grid gap-4 xl:grid-cols-2">
                   {[
-                    { name: '互卦', value: result.huGua, as: result.huGuaAs, color: 'from-green-500 to-emerald-500' },
-                    { name: '错卦', value: result.cuoGua, as: result.cuoGuaAs, color: 'from-indigo-500 to-purple-500' },
-                    { name: '综卦', value: result.zongGua, as: result.zongGuaAs, color: 'from-pink-500 to-rose-500' },
-                    { name: '伏卦', value: result.fuGua, as: result.fuGuaAs, color: 'from-amber-500 to-yellow-500', shen: result.fuGua }
-                  ].map((item) => (
-                    <div key={item.name} className={`p-4 bg-gradient-to-br ${item.color} rounded-xl text-white text-center shadow-lg transform hover:scale-105 transition-transform`}>
-                      <div className="text-sm mb-1 opacity-90">{item.name}</div>
-                      <div className="text-3xl mb-1">{item.as}</div>
-                      <div className="text-base font-bold">{item.value}</div>
-                    </div>
+                    ['本卦六爻', result.benGua, result.liuYao.benGua, true],
+                    ['变卦六爻', result.bianGua, result.liuYao.bianGua, false],
+                  ].map(([label, gua, data, showFu]) => (
+                    <DossierResultBlock key={label as string} title={`${label} · ${gua as string}`}>
+                      <div className="space-y-3">
+                        {[5, 4, 3, 2, 1, 0].map((index) => {
+                          const key = `${label}-${index}`;
+                          const benData = data as LiuYaoResult['liuYao']['benGua'];
+                          return (
+                            <div
+                              key={key}
+                              className="rounded-[20px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,252,247,0.88)] p-4"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <div className="text-[11px] uppercase tracking-[0.22em] text-[#8a6239]">{benData.yaoMing[index]}</div>
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <span className="text-2xl font-semibold tracking-[0.25em] text-[#2f2118]">{benData.yaoAs[index]}</span>
+                                    {showFu && benData.yaoAsMark[index] ? (
+                                      <span className="text-sm text-[#8f5b2d]">{benData.yaoAsMark[index]} {benData.yaoAsMarkName[index]}</span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-medium text-[#2f2118]">{benData.ganZhi[index]}</div>
+                                  <div className="mt-1 text-xs text-[#77685c]">{benData.naYin[index]}</div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {benData.shiYing[index] ? (
+                                  <DossierResultTagList items={[benData.shiYing[index]]} tone={benData.shiYing[index] === '世' ? 'warning' : 'success'} />
+                                ) : null}
+                                <DossierResultTagList items={[benData.liuQin[index]]} tone={LIU_QIN_TONE[benData.liuQin[index]] || 'default'} />
+                                <DossierResultTagList items={[benData.liuShen[index]]} tone={LIU_SHEN_TONE[benData.liuShen[index]] || 'default'} />
+                                {showFu && benData.fuShen[index] ? <DossierResultTagList items={[`伏 ${benData.fuShen[index]}`]} tone="muted" /> : null}
+                              </div>
+
+                              {benData.yaoCi[index] ? (
+                                <div className="mt-4">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => setExpandedYao(expandedYao === key ? null : key)}
+                                  >
+                                    {expandedYao === key ? '收起爻辞' : '展开爻辞'}
+                                  </Button>
+                                  {expandedYao === key ? (
+                                    <div className="mt-3 rounded-[18px] border border-[rgba(117,76,40,0.12)] bg-[rgba(247,240,229,0.72)] px-4 py-4 text-sm leading-7 text-[#5d4732]">
+                                      {benData.yaoCi[index]}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </DossierResultBlock>
                   ))}
                 </div>
-              </Card>
+              </DossierResultSection>
 
-              {/* 四柱干支信息 */}
-              <Card title="四柱干支" icon="📅">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { name: '年柱', value: result.ganZhi.year, color: 'from-red-500 to-pink-500', shensha: filterShenSha(result.shenSha?.year || []) },
-                    { name: '月柱', value: result.ganZhi.month, color: 'from-blue-500 to-cyan-500', shensha: filterShenSha(result.shenSha?.month || []) },
-                    { name: '日柱', value: result.ganZhi.day, color: 'from-green-500 to-emerald-500', shensha: filterShenSha(result.shenSha?.day || []) },
-                    { name: '时柱', value: result.ganZhi.hour, color: 'from-purple-500 to-indigo-500', shensha: filterShenSha(result.shenSha?.hour || []) }
-                  ].map((item) => (
-                    <div key={item.name} className={`p-6 bg-gradient-to-br ${item.color} rounded-xl text-white shadow-lg transform hover:scale-105 transition-transform`}>
-                      <div className="text-sm mb-2 opacity-90">{item.name}</div>
-                      <div className="text-3xl font-bold mb-3">{item.value}</div>
-                      {item.shensha.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-white/30">
-                          <div className="text-xs opacity-80 mb-2">神煞</div>
-                          <div className="flex flex-wrap gap-1 justify-center">
-                            {item.shensha.map((sha, idx) => (
-                              <Badge key={idx} size="sm" className="bg-white/20 backdrop-blur-sm text-white border-0">
-                                {sha}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </Card>
-
-              {/* 节气和辅助信息 */}
-              <Card title="节气与辅助信息" icon="🌸">
-                {/* 节气信息 */}
-                {result.jieQi && (
-                  <div className="mb-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                      <span className="text-xl">🌿</span>
-                      节气信息
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <InfoCard label="上一节" value={result.jieQi.prevJie} color="from-green-50 to-emerald-50" className="border-green-200" />
-                      <InfoCard label="下一节" value={result.jieQi.nextJie} color="from-green-50 to-emerald-50" className="border-green-200" />
-                      <InfoCard label="上一气" value={result.jieQi.prevQi} color="from-green-50 to-emerald-50" className="border-green-200" />
-                      <InfoCard label="下一气" value={result.jieQi.nextQi} color="from-green-50 to-emerald-50" className="border-green-200" />
-                    </div>
-                  </div>
-                )}
-
-                {/* 重要辅助信息 */}
-                <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* 空亡信息 */}
-                  {result.kongWang && result.kongWang.length > 0 && (
-                    <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border-2 border-amber-300 shadow-md">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">⚠️</span>
-                        <h4 className="text-lg font-bold text-amber-800">空亡</h4>
-                      </div>
-                      <div className="flex gap-3 justify-center">
-                        {result.kongWang.map((zhi, index) => (
-                          <Badge key={index} variant="warning" size="lg" className="shadow-sm">
-                            {zhi}
-                          </Badge>
-                        ))}
-                      </div>
-                      <p className="text-xs text-amber-700 mt-3 text-center">日柱空亡地支</p>
-                    </div>
-                  )}
-
-                  {/* 月将信息 */}
-                  {result.yueJiang && (
-                    <div className="p-5 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border-2 border-indigo-300 shadow-md">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">🌙</span>
-                        <h4 className="text-lg font-bold text-indigo-800">月将</h4>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-indigo-700 mb-1">{result.yueJiang}</div>
-                        {result.yueJiangShen && (
-                          <div className="text-sm text-indigo-600">({result.yueJiangShen})</div>
-                        )}
-                      </div>
-                      <p className="text-xs text-indigo-700 mt-3 text-center">月将神煞</p>
-                    </div>
-                  )}
-
-                  {/* 五不遇时 */}
-                  <div className={`p-5 rounded-xl border-2 shadow-md ${
-                    result.wuBuYuShi
-                      ? 'bg-gradient-to-br from-red-50 to-pink-50 border-red-300'
-                      : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-2xl">{result.wuBuYuShi ? '❌' : '✅'}</span>
-                      <h4 className={`text-lg font-bold ${result.wuBuYuShi ? 'text-red-800' : 'text-green-800'}`}>
-                        五不遇时
-                      </h4>
-                    </div>
-                    <div className="text-center">
-                      <div className={`text-2xl font-bold ${result.wuBuYuShi ? 'text-red-700' : 'text-green-700'}`}>
-                        {result.wuBuYuShi ? '是' : '否'}
-                      </div>
-                    </div>
-                    <p className={`text-xs mt-3 text-center ${result.wuBuYuShi ? 'text-red-700' : 'text-green-700'}`}>
-                      {result.wuBuYuShi ? '不利占卜' : '可以占卜'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 基本辅助信息 */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                  {result.zao && <InfoCard label="造" value={result.zao} color="from-purple-50 to-pink-50" className="border-purple-200" />}
-                  {result.age && <InfoCard label="年龄" value={`${result.age}岁`} color="from-cyan-50 to-blue-50" className="border-cyan-200" />}
-                  {result.xingQi && <InfoCard label="星期" value={result.xingQi} color="from-blue-50 to-indigo-50" className="border-blue-200" />}
-                  {result.jiJie && <InfoCard label="季节" value={result.jiJie} color="from-green-50 to-teal-50" className="border-green-200" />}
-                  {result.shengXiao && <InfoCard label="生肖" value={result.shengXiao} color="from-red-50 to-orange-50" className="border-red-200" />}
-                  {result.xingZuo && <InfoCard label="星座" value={result.xingZuo} color="from-purple-50 to-violet-50" className="border-purple-200" />}
-                  {result.yueXiang && <InfoCard label="月相" value={result.yueXiang} color="from-yellow-50 to-amber-50" className="border-yellow-200" />}
-                </div>
-              </Card>
-
-              {/* 六爻详细信息 - 传统纳甲风格 */}
-              <Card title="六爻详细信息" icon="☯">
-                {/* 六亲缺失提示 */}
-                {result.liuQinQueShi && result.liuQinQueShi.length > 0 && (
-                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-                    <div className="flex items-center gap-2 text-red-700">
-                      <span className="text-xl">⚠️</span>
-                      <span className="font-semibold">六亲缺失：</span>
-                      <span>{result.liuQinQueShi.join('、')}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* 本卦六爻 - 传统卡片式展示 */}
-                <div className="mb-8">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <span className="w-8 h-8 flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg text-sm">本</span>
-                    本卦六爻详析
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[5, 4, 3, 2, 1, 0].map((index) => (
-                      <div
-                        key={`ben-card-${index}`}
-                        className={`relative p-4 rounded-xl border-2 transition-all hover:shadow-lg ${
-                          result.liuYao.benGua.shiYing[index]
-                            ? result.liuYao.benGua.shiYing[index] === '世'
-                              ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-400'
-                              : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-400'
-                            : 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200'
-                        }`}
-                      >
-                        {/* 爻位标识 */}
-                        <div className="absolute -top-3 left-4">
-                          <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                            result.liuYao.benGua.shiYing[index]
-                              ? result.liuYao.benGua.shiYing[index] === '世'
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-green-500 text-white'
-                              : 'bg-blue-500 text-white'
-                          }`}>
-                            {index === 5 ? '上爻' : index === 4 ? '五爻' : index === 3 ? '四爻' : index === 2 ? '三爻' : index === 1 ? '二爻' : '初爻'}
-                            {result.liuYao.benGua.shiYing[index] && ` · ${result.liuYao.benGua.shiYing[index]}`}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 grid grid-cols-3 gap-3">
-                          {/* 左侧：卦爻 */}
-                          <div className="text-center">
-                            <div className={`text-3xl font-bold mb-1 ${
-                              result.liuYao.benGua.yaoAs[index] === '—' ? 'text-blue-600' : 'text-red-500'
-                            }`}>
-                              {result.liuYao.benGua.yaoAs[index]}
-                            </div>
-                            {result.liuYao.benGua.yaoAsMark[index] && (
-                              <div className="text-sm font-bold text-red-600">
-                                {result.liuYao.benGua.yaoAsMark[index]} {result.liuYao.benGua.yaoAsMarkName[index]}
-                              </div>
-                            )}
-                            <div className="text-xs text-gray-500 mt-1">{result.liuYao.benGua.yaoMing[index]}</div>
-                          </div>
-
-                          {/* 中间：纳甲信息 */}
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-gray-800">{result.liuYao.benGua.ganZhi[index]}</div>
-                            <div className="text-xs text-gray-500">{result.liuYao.benGua.naYin[index]}</div>
-                            <div className={`mt-2 text-xs px-2 py-1 rounded-full inline-block ${
-                              result.liuYao.benGua.liuQin[index] === '父母' ? 'bg-blue-500 text-white' :
-                              result.liuYao.benGua.liuQin[index] === '兄弟' ? 'bg-gray-500 text-white' :
-                              result.liuYao.benGua.liuQin[index] === '子孙' ? 'bg-green-500 text-white' :
-                              result.liuYao.benGua.liuQin[index] === '妻财' ? 'bg-yellow-500 text-white' :
-                              'bg-red-500 text-white'
-                            }`}>
-                              {result.liuYao.benGua.liuQin[index]}
-                            </div>
-                          </div>
-
-                          {/* 右侧：六神 */}
-                          <div className="text-center">
-                            <div className={`text-sm px-3 py-2 rounded-lg border-2 ${
-                              result.liuYao.benGua.liuShen[index] === '青龙' ? 'bg-green-100 border-green-300 text-green-700' :
-                              result.liuYao.benGua.liuShen[index] === '朱雀' ? 'bg-red-100 border-red-300 text-red-700' :
-                              result.liuYao.benGua.liuShen[index] === '勾陈' ? 'bg-amber-100 border-amber-300 text-amber-700' :
-                              result.liuYao.benGua.liuShen[index] === '螣蛇' ? 'bg-purple-100 border-purple-300 text-purple-700' :
-                              result.liuYao.benGua.liuShen[index] === '白虎' ? 'bg-gray-100 border-gray-300 text-gray-700' :
-                              'bg-cyan-100 border-cyan-300 text-cyan-700'
-                            }`}>
-                              {result.liuYao.benGua.liuShen[index]}
-                            </div>
-                            {result.liuYao.benGua.fuShen[index] && (
-                              <div className="mt-2 text-xs text-orange-600 font-medium">
-                                伏 {result.liuYao.benGua.fuShen[index]}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 爻辞按钮 */}
-                        {result.liuYao.benGua.yaoCi[index] && (
-                          <div className="mt-3 pt-3 border-t border-gray-200">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => setExpandedYao(expandedYao === index ? null : index)}
-                              className="w-full"
-                            >
-                              {expandedYao === index ? '收起爻辞' : '查看爻辞'}
-                            </Button>
-                            {expandedYao === index && result.liuYao.benGua.yaoCi[index] && (
-                              <div className="mt-3 p-3 bg-white/50 rounded-lg">
-                                <p className="text-sm text-gray-700 leading-relaxed">
-                                  {result.liuYao.benGua.yaoCi[index]}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 变卦六爻 - 传统卡片式展示 */}
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <span className="w-8 h-8 flex items-center justify-center bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-sm">变</span>
-                    变卦六爻详析
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[5, 4, 3, 2, 1, 0].map((index) => (
-                      <div
-                        key={`bian-card-${index}`}
-                        className={`relative p-4 rounded-xl border-2 transition-all hover:shadow-lg ${
-                          result.liuYao.bianGua.shiYing[index]
-                            ? result.liuYao.bianGua.shiYing[index] === '世'
-                              ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-400'
-                              : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-400'
-                            : 'bg-gradient-to-r from-orange-50 to-red-50 border-orange-200'
-                        }`}
-                      >
-                        {/* 爻位标识 */}
-                        <div className="absolute -top-3 left-4">
-                          <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                            result.liuYao.bianGua.shiYing[index]
-                              ? result.liuYao.bianGua.shiYing[index] === '世'
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-green-500 text-white'
-                              : 'bg-orange-500 text-white'
-                          }`}>
-                            {index === 5 ? '上爻' : index === 4 ? '五爻' : index === 3 ? '四爻' : index === 2 ? '三爻' : index === 1 ? '二爻' : '初爻'}
-                            {result.liuYao.bianGua.shiYing[index] && ` · ${result.liuYao.bianGua.shiYing[index]}`}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 grid grid-cols-3 gap-3">
-                          {/* 左侧：卦爻 */}
-                          <div className="text-center">
-                            <div className={`text-3xl font-bold mb-1 ${
-                              result.liuYao.bianGua.yaoAs[index] === '—' ? 'text-orange-600' : 'text-red-500'
-                            }`}>
-                              {result.liuYao.bianGua.yaoAs[index]}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">{result.liuYao.bianGua.yaoMing[index]}</div>
-                          </div>
-
-                          {/* 中间：纳甲信息 */}
-                          <div className="text-center">
-                            <div className="text-lg font-bold text-gray-800">{result.liuYao.bianGua.ganZhi[index]}</div>
-                            <div className="text-xs text-gray-500">{result.liuYao.bianGua.naYin[index]}</div>
-                            <div className={`mt-2 text-xs px-2 py-1 rounded-full inline-block ${
-                              result.liuYao.bianGua.liuQin[index] === '父母' ? 'bg-blue-500 text-white' :
-                              result.liuYao.bianGua.liuQin[index] === '兄弟' ? 'bg-gray-500 text-white' :
-                              result.liuYao.bianGua.liuQin[index] === '子孙' ? 'bg-green-500 text-white' :
-                              result.liuYao.bianGua.liuQin[index] === '妻财' ? 'bg-yellow-500 text-white' :
-                              'bg-red-500 text-white'
-                            }`}>
-                              {result.liuYao.bianGua.liuQin[index]}
-                            </div>
-                          </div>
-
-                          {/* 右侧：六神 */}
-                          <div className="text-center">
-                            <div className={`text-sm px-3 py-2 rounded-lg border-2 ${
-                              result.liuYao.bianGua.liuShen[index] === '青龙' ? 'bg-green-100 border-green-300 text-green-700' :
-                              result.liuYao.bianGua.liuShen[index] === '朱雀' ? 'bg-red-100 border-red-300 text-red-700' :
-                              result.liuYao.bianGua.liuShen[index] === '勾陈' ? 'bg-amber-100 border-amber-300 text-amber-700' :
-                              result.liuYao.bianGua.liuShen[index] === '螣蛇' ? 'bg-purple-100 border-purple-300 text-purple-700' :
-                              result.liuYao.bianGua.liuShen[index] === '白虎' ? 'bg-gray-100 border-gray-300 text-gray-700' :
-                              'bg-cyan-100 border-cyan-300 text-cyan-700'
-                            }`}>
-                              {result.liuYao.bianGua.liuShen[index]}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-
-              {/* ShenSha Summary Panel */}
-              {result.shenSha && (
-                <Card title="神煞汇总" icon="✨">
-                  <div className="flex items-center justify-end mb-6">
-                    <Button
-                      size="sm"
-                      gradient="from-purple-500 to-pink-500"
-                      onClick={() => setShowShenShaConfig(!showShenShaConfig)}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span>⚙️</span>
-                        <span>配置神煞</span>
-                      </span>
+              {result.shenSha ? (
+                <DossierResultSection
+                  eyebrow="ShenSha"
+                  title="神煞汇总"
+                  description="保留显示配置和分类，但外观统一成当前页面的信息块样式。"
+                >
+                  <div className="mb-4 flex items-center justify-end">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setShowShenShaConfig((prev) => !prev)}>
+                      {showShenShaConfig ? '收起配置' : '配置神煞'}
                     </Button>
                   </div>
 
-                  {/* 神煞配置面板 */}
-                  {showShenShaConfig && (
-                    <div className="mb-6 p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-300 shadow-lg">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-lg font-bold text-purple-800 flex items-center gap-2">
-                          <span>⚙️</span>
-                          神煞显示配置
-                        </h4>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={resetConfig}
-                        >
+                  {showShenShaConfig ? (
+                    <div className="mb-4 rounded-[24px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,253,248,0.92)] p-5 shadow-[0_20px_38px_-32px_rgba(56,35,12,0.45)]">
+                      <div className="mb-4 flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.24em] text-[#8a6239]">显示配置</div>
+                          <div className="mt-1 text-lg font-semibold text-[#2f2118]">神煞开关</div>
+                        </div>
+                        <Button type="button" size="sm" variant="secondary" onClick={resetConfig}>
                           重置全部
                         </Button>
                       </div>
 
                       <div className="space-y-4">
-                        {/* 吉神配置 */}
-                        <div className="p-4 bg-white rounded-lg border border-green-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <h5 className="font-bold text-green-800 flex items-center gap-2">
-                              <span>🌟</span>
-                              吉神 ({ALL_SHEN_SHA.吉神.length}种)
-                            </h5>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="success"
-                                onClick={() => toggleCategory('吉神', true)}
-                              >
-                                全选
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => toggleCategory('吉神', false)}
-                              >
-                                全不选
-                              </Button>
+                        {Object.entries(ALL_SHEN_SHA).map(([category, list]) => (
+                          <div key={category} className="rounded-[20px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,252,247,0.88)] p-4">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <div className="text-sm font-medium text-[#2f2118]">
+                                {category} ({list.length})
+                              </div>
+                              <div className="flex gap-2">
+                                <Button type="button" size="sm" variant="secondary" onClick={() => toggleCategory(category as keyof typeof ALL_SHEN_SHA, true)}>
+                                  全选
+                                </Button>
+                                <Button type="button" size="sm" variant="secondary" onClick={() => toggleCategory(category as keyof typeof ALL_SHEN_SHA, false)}>
+                                  全不选
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                              {list.map((sha) => (
+                                <label
+                                  key={sha}
+                                  className="flex items-center gap-2 rounded-[16px] border border-[rgba(117,76,40,0.12)] bg-white/70 px-3 py-2 text-sm text-[#5d4732]"
+                                >
+                                  <input type="checkbox" checked={shenShaConfig[sha] !== false} onChange={() => toggleShenSha(sha)} />
+                                  <span>{sha}</span>
+                                </label>
+                              ))}
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-                            {ALL_SHEN_SHA.吉神.map(sha => (
-                              <label key={sha} className="flex items-center gap-2 cursor-pointer hover:bg-green-50 p-2 rounded transition-colors">
-                                <input
-                                  type="checkbox"
-                                  checked={shenShaConfig[sha] !== false}
-                                  onChange={() => toggleShenSha(sha)}
-                                  className="w-4 h-4 text-green-600 rounded"
-                                />
-                                <span className="text-sm text-gray-700">{sha}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* 凶神配置 */}
-                        <div className="p-4 bg-white rounded-lg border border-red-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <h5 className="font-bold text-red-800 flex items-center gap-2">
-                              <span>⚠️</span>
-                              凶神 ({ALL_SHEN_SHA.凶神.length}种)
-                            </h5>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="danger"
-                                onClick={() => toggleCategory('凶神', true)}
-                              >
-                                全选
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => toggleCategory('凶神', false)}
-                              >
-                                全不选
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                            {ALL_SHEN_SHA.凶神.map(sha => (
-                              <label key={sha} className="flex items-center gap-2 cursor-pointer hover:bg-red-50 p-2 rounded transition-colors">
-                                <input
-                                  type="checkbox"
-                                  checked={shenShaConfig[sha] !== false}
-                                  onChange={() => toggleShenSha(sha)}
-                                  className="w-4 h-4 text-red-600 rounded"
-                                />
-                                <span className="text-sm text-gray-700">{sha}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* 半吉半凶配置 */}
-                        <div className="p-4 bg-white rounded-lg border border-yellow-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <h5 className="font-bold text-yellow-800 flex items-center gap-2">
-                              <span>⚖️</span>
-                              半吉半凶 ({ALL_SHEN_SHA.半吉半凶.length}种)
-                            </h5>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                gradient="from-yellow-500 to-amber-500"
-                                onClick={() => toggleCategory('半吉半凶', true)}
-                              >
-                                全选
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => toggleCategory('半吉半凶', false)}
-                              >
-                                全不选
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            {ALL_SHEN_SHA.半吉半凶.map(sha => (
-                              <label key={sha} className="flex items-center gap-2 cursor-pointer hover:bg-yellow-50 p-2 rounded transition-colors">
-                                <input
-                                  type="checkbox"
-                                  checked={shenShaConfig[sha] !== false}
-                                  onChange={() => toggleShenSha(sha)}
-                                  className="w-4 h-4 text-yellow-600 rounded"
-                                />
-                                <span className="text-sm text-gray-700">{sha}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* 动星配置 */}
-                        <div className="p-4 bg-white rounded-lg border border-blue-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <h5 className="font-bold text-blue-800 flex items-center gap-2">
-                              <span>🏃</span>
-                              动星 ({ALL_SHEN_SHA.动星.length}种)
-                            </h5>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                gradient="from-blue-500 to-cyan-500"
-                                onClick={() => toggleCategory('动星', true)}
-                              >
-                                全选
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => toggleCategory('动星', false)}
-                              >
-                                全不选
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-2">
-                            {ALL_SHEN_SHA.动星.map(sha => (
-                              <label key={sha} className="flex items-center gap-2 cursor-pointer hover:bg-blue-50 p-2 rounded transition-colors">
-                                <input
-                                  type="checkbox"
-                                  checked={shenShaConfig[sha] !== false}
-                                  onChange={() => toggleShenSha(sha)}
-                                  className="w-4 h-4 text-blue-600 rounded"
-                                />
-                                <span className="text-sm text-gray-700">{sha}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                        <p className="text-sm text-blue-800">
-                          💡 <span className="font-semibold">提示：</span>
-                          配置会自动保存到浏览器，下次访问时会保持您的选择。取消勾选的神煞将不会在四柱和汇总中显示。
-                        </p>
+                        ))}
                       </div>
                     </div>
-                  )}
+                  ) : null}
 
-                  {/* 神煞统计 */}
-                  <div className="mb-6 p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                      <div>
-                        <div className="text-3xl font-bold text-purple-700">
-                          {[...new Set([...filterShenSha(result.shenSha.year), ...filterShenSha(result.shenSha.month), ...filterShenSha(result.shenSha.day), ...filterShenSha(result.shenSha.hour)])].length}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">神煞总数</div>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold text-green-700">
-                          {filterShenSha(result.shenSha.year).length}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">年柱神煞</div>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold text-blue-700">
-                          {filterShenSha(result.shenSha.month).length}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">月柱神煞</div>
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold text-orange-700">
-                          {filterShenSha(result.shenSha.day).length + filterShenSha(result.shenSha.hour).length}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">日时神煞</div>
-                      </div>
-                    </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <DossierResultMetric label="神煞总数" value={allFilteredShenSha.length} />
+                    <DossierResultMetric label="年柱神煞" value={filterShenSha(result.shenSha.year).length} />
+                    <DossierResultMetric label="月柱神煞" value={filterShenSha(result.shenSha.month).length} />
+                    <DossierResultMetric label="日时神煞" value={filterShenSha(result.shenSha.day).length + filterShenSha(result.shenSha.hour).length} />
                   </div>
 
-                  {/* 按类型分类展示神煞 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* 吉神 */}
-                    {(() => {
-                      const allShenSha = [...new Set([...filterShenSha(result.shenSha.year), ...filterShenSha(result.shenSha.month), ...filterShenSha(result.shenSha.day), ...filterShenSha(result.shenSha.hour)])];
-                      const jiShen = allShenSha.filter(sha => {
-                        const shenShaInfo = {
-                          '天乙贵人': '吉神', '太极贵人': '吉神', '文昌贵人': '吉神', '福星贵人': '吉神',
-                          '天厨贵人': '吉神', '月德贵人': '吉神', '天德贵人': '吉神', '天元禄': '吉神',
-                          '将星': '吉神', '天喜': '吉神', '天医': '吉神', '谋星': '吉神',
-                          '皇恩': '吉神', '唐符国印': '吉神', '天马': '吉神'
-                        };
-                        return shenShaInfo[sha as keyof typeof shenShaInfo] === '吉神';
-                      });
-                      return jiShen.length > 0 && (
-                        <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200">
-                          <h4 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">
-                            <span className="text-xl">🌟</span>
-                            吉神 ({jiShen.length})
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {jiShen.map((sha, idx) => (
-                              <span key={idx} className="px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium shadow-sm hover:bg-green-600 transition-colors cursor-default">
-                                {sha}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
+                  <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                    {(Object.keys(ALL_SHEN_SHA) as Array<keyof typeof ALL_SHEN_SHA>).map((kind) => {
+                      const items = allFilteredShenSha.filter((sha) => SHEN_SHA_KIND[sha] === kind);
+                      if (!items.length) return null;
 
-                    {/* 凶神 */}
-                    {(() => {
-                      const allShenSha = [...new Set([...filterShenSha(result.shenSha.year), ...filterShenSha(result.shenSha.month), ...filterShenSha(result.shenSha.day), ...filterShenSha(result.shenSha.hour)])];
-                      const xiongShen = allShenSha.filter(sha => {
-                        const shenShaInfo = {
-                          '劫煞': '凶神', '灾煞': '凶神', '阳刃': '凶神', '飞刃': '凶神'
-                        };
-                        return shenShaInfo[sha as keyof typeof shenShaInfo] === '凶神';
-                      });
-                      return xiongShen.length > 0 && (
-                        <div className="p-6 bg-gradient-to-br from-red-50 to-orange-50 rounded-xl border border-red-200">
-                          <h4 className="text-lg font-bold text-red-800 mb-4 flex items-center gap-2">
-                            <span className="text-xl">⚠️</span>
-                            凶神 ({xiongShen.length})
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {xiongShen.map((sha, idx) => (
-                              <span key={idx} className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm font-medium shadow-sm hover:bg-red-600 transition-colors cursor-default">
-                                {sha}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
+                      const tone =
+                        kind === '吉神' ? 'success' : kind === '凶神' ? 'danger' : kind === '半吉半凶' ? 'warning' : 'default';
 
-                    {/* 半吉半凶 */}
-                    {(() => {
-                      const allShenSha = [...new Set([...filterShenSha(result.shenSha.year), ...filterShenSha(result.shenSha.month), ...filterShenSha(result.shenSha.day), ...filterShenSha(result.shenSha.hour)])];
-                      const banJiBanXiong = allShenSha.filter(sha => {
-                        const shenShaInfo = {
-                          '华盖': '半吉半凶', '咸池': '半吉半凶'
-                        };
-                        return shenShaInfo[sha as keyof typeof shenShaInfo] === '半吉半凶';
-                      });
-                      return banJiBanXiong.length > 0 && (
-                        <div className="p-6 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl border border-yellow-200">
-                          <h4 className="text-lg font-bold text-yellow-800 mb-4 flex items-center gap-2">
-                            <span className="text-xl">⚖️</span>
-                            半吉半凶 ({banJiBanXiong.length})
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {banJiBanXiong.map((sha, idx) => (
-                              <span key={idx} className="px-3 py-2 bg-yellow-500 text-white rounded-lg text-sm font-medium shadow-sm hover:bg-yellow-600 transition-colors cursor-default">
-                                {sha}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                      return (
+                        <DossierResultBlock key={kind} title={`${kind} (${items.length})`}>
+                          <DossierResultTagList items={items} tone={tone} />
+                        </DossierResultBlock>
                       );
-                    })()}
-
-                    {/* 动星 */}
-                    {(() => {
-                      const allShenSha = [...new Set([...filterShenSha(result.shenSha.year), ...filterShenSha(result.shenSha.month), ...filterShenSha(result.shenSha.day), ...filterShenSha(result.shenSha.hour)])];
-                      const dongXing = allShenSha.filter(sha => {
-                        const shenShaInfo = {
-                          '驿马': '动星'
-                        };
-                        return shenShaInfo[sha as keyof typeof shenShaInfo] === '动星';
-                      });
-                      return dongXing.length > 0 && (
-                        <div className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
-                          <h4 className="text-lg font-bold text-blue-800 mb-4 flex items-center gap-2">
-                            <span className="text-xl">🏃</span>
-                            动星 ({dongXing.length})
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {dongXing.map((sha, idx) => (
-                              <span key={idx} className="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium shadow-sm hover:bg-blue-600 transition-colors cursor-default">
-                                {sha}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
+                    })}
                   </div>
 
-                  {/* 神煞说明 */}
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      💡 <span className="font-semibold">神煞说明：</span>
-                      神煞是命理学中的重要概念，代表不同的吉凶征兆。
-                      <span className="text-green-700 font-medium">吉神</span>主吉利、顺遂；
-                      <span className="text-red-700 font-medium">凶神</span>主凶险、阻碍；
-                      <span className="text-yellow-700 font-medium">半吉半凶</span>需看具体情况；
-                      <span className="text-blue-700 font-medium">动星</span>主变动、迁移。
-                    </p>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      ['年柱', filterShenSha(result.shenSha.year)],
+                      ['月柱', filterShenSha(result.shenSha.month)],
+                      ['日柱', filterShenSha(result.shenSha.day)],
+                      ['时柱', filterShenSha(result.shenSha.hour)],
+                    ].map(([label, items]) => (
+                      <DossierResultBlock key={label as string} title={label as string}>
+                        <DossierResultTagList items={items as string[]} tone="muted" />
+                      </DossierResultBlock>
+                    ))}
                   </div>
-                </Card>
-              )}
+                </DossierResultSection>
+              ) : null}
             </div>
-          )}
-        </div>
-      </main>
-
-      {/* AI助手 */}
-      {result && <AIAssistant system="liuyao" chartData={result} />}
-    </div>
+          ) : null}
+        </>
+      }
+      footer={result ? <AIAssistant system="liuyao" chartData={result} /> : null}
+    />
   );
 }

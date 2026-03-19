@@ -1,4 +1,5 @@
 import { TIAN_GAN, DI_ZHI, WU_XING_MAP, NA_YIN, SHI_SHEN_MAP, DI_ZHI_CANG_GAN, TIAN_GAN_XIANG_HE, TIAN_GAN_WU_HE_HUA, DI_ZHI_SAN_HE, DI_ZHI_SAN_HUI, DI_ZHI_LIU_HE, DI_ZHI_LIU_HE_HUA, DI_ZHI_XIANG_CHONG, DI_ZHI_XIANG_XING, DI_ZHI_XIANG_HAI, DI_ZHI_XIANG_PO, GE_JU_CHENG_BAI, GE_JU_MEANING, TIAN_GAN_XIANG_SHENG, TIAN_GAN_XIANG_KE, TIAN_GAN_XIANG_CHONG, DI_ZHI_BAN_HE, DI_ZHI_GONG_HE, DI_ZHI_AN_HE, JIU_XING_YEAR_ZHI, JIU_XING_WU_XING, JIU_XING_JI_XIONG, JIU_XING_MEANING, YEAR_GU_ZHONG, MONTH_GU_ZHONG, DAY_GU_ZHONG, HOUR_GU_ZHONG, GU_ZHONG_PI_ZHU_MAN, GU_ZHONG_PI_ZHU_WOMAN, SHENG_XIAO, YUE_JIANG, JIE_QI_YUE_JIANG, PENG_ZU_BAI_JI_GAN, PENG_ZU_BAI_JI_ZHI, MING_GUA_MAP, RI_ZHU_ZHENG_CAI, RI_ZHU_PIAN_CAI, NV_RI_ZHU_ZHENG_TAO_HUA, NV_RI_ZHU_PIAN_TAO_HUA, RI_ZHU_LUN_MING, JIU_XING_QI_MEN_JI_XIONG, JIU_XING_XUAN_KONG_JI_XIONG } from '../constants';
+import { parseSolarDateTimeString, solarPartsToDate } from './dateTime';
 
 /**
  * 获取干支索引
@@ -114,20 +115,11 @@ export function formatDate(date: Date): string {
  * 解析日期字符串
  */
 export function parseDate(dateStr: string): Date {
-  // 支持 yyyy-MM-dd HH:mm:ss 格式
-  const parts = dateStr.split(/[- :]/);
-  if (parts.length >= 3) {
-    const year = parseInt(parts[0]);
-    const month = parseInt(parts[1]) - 1;
-    const day = parseInt(parts[2]);
-    const hour = parts.length > 3 ? parseInt(parts[3]) : 0;
-    const minute = parts.length > 4 ? parseInt(parts[4]) : 0;
-    const second = parts.length > 5 ? parseInt(parts[5]) : 0;
-
-    return new Date(year, month, day, hour, minute, second);
+  const parts = parseSolarDateTimeString(dateStr);
+  if (!parts) {
+    throw new Error('日期格式无效，请使用 yyyy-MM-dd HH:mm:ss');
   }
-
-  return new Date();
+  return solarPartsToDate(parts);
 }
 
 /**
@@ -403,7 +395,8 @@ export function calculateLiuNian(
     const age = year - birthYear + 1; // 虚岁
 
     // 按春节（农历正月初一）切换流年
-    const ganZhi = Lunar.fromYmd(year, 1, 1).getYearInGanZhi();
+    const liChun = Lunar.fromYmd(year, 1, 1).getJieQiTable()['立春'];
+    const ganZhi = liChun.getLunar().getYearInGanZhiExact();
 
     liuNianList.push({
       year,
@@ -899,15 +892,22 @@ export function analyzeGeJu(
     }
   }
 
-  // 判断特殊格局（简化版）
+  // 判断特殊格局，优先参考日主强弱与月令扶抑
   const biJianCount = (shiShenCount['比肩'] || 0) + (shiShenCount['劫财'] || 0);
   const shiShangCount = (shiShenCount['食神'] || 0) + (shiShenCount['伤官'] || 0);
   const caiCount = (shiShenCount['偏财'] || 0) + (shiShenCount['正财'] || 0);
   const guanCount = (shiShenCount['七杀'] || 0) + (shiShenCount['正官'] || 0);
   const yinCount = (shiShenCount['偏印'] || 0) + (shiShenCount['正印'] || 0);
+  const dayElement = getWuXing(dayGan);
+  const monthElement = getWuXing(monthZhi);
+  const supportScore =
+    biJianCount +
+    yinCount +
+    (monthElement === dayElement || getGeneratedElement(monthElement) === dayElement ? 1.5 : 0);
+  const consumeScore = shiShangCount + caiCount + guanCount;
+  const strengthDelta = supportScore - consumeScore;
 
-  // 从格判断（简化：日主弱且某一十神特别旺）
-  if (biJianCount <= 1 && yinCount <= 1) {
+  if (strengthDelta <= -2 && biJianCount + yinCount <= 2) {
     if (caiCount >= 4) {
       geJuType = 'CONG_CAI';
       geJuName = '从财格';
@@ -920,8 +920,7 @@ export function analyzeGeJu(
     }
   }
 
-  // 专旺格判断（简化：某一十神特别旺）
-  if (biJianCount >= 5) {
+  if (strengthDelta >= 3 && biJianCount + yinCount >= 4) {
     geJuType = 'ZHUAN_WANG';
     geJuName = '专旺格';
   }
@@ -932,7 +931,7 @@ export function analyzeGeJu(
   // 判断格局成败
   const geJuChengBai = analyzeGeJuChengBai(geJuName, shiShenCount, gans, zhis);
 
-  // 选取用神（简化版）
+  // 用神优先基于日主强弱、月令与格局协同关系选取
   const { yongShen, xiShen, jiShen, chouShen } = selectYongShen(
     dayGan,
     geJuName,
@@ -1028,93 +1027,216 @@ function selectYongShen(
   jiShen: string;
   chouShen: string;
 } {
-  // 简化版用神选取
   const biJianCount = (shiShenCount['比肩'] || 0) + (shiShenCount['劫财'] || 0);
   const shiShangCount = (shiShenCount['食神'] || 0) + (shiShenCount['伤官'] || 0);
   const caiCount = (shiShenCount['偏财'] || 0) + (shiShenCount['正财'] || 0);
   const guanCount = (shiShenCount['七杀'] || 0) + (shiShenCount['正官'] || 0);
   const yinCount = (shiShenCount['偏印'] || 0) + (shiShenCount['正印'] || 0);
+  const dayElement = getWuXing(dayGan);
+  const monthElement = getWuXing(monthZhi);
+  const resourceElement = getGeneratingElement(dayElement);
+  const peerElement = dayElement;
+  const outputElement = getGeneratedElement(dayElement);
+  const wealthElement = getControlledElement(dayElement);
+  const officialElement = getControllingElement(dayElement);
 
-  let yongShen = '';
-  let xiShen = '';
-  let jiShen = '';
-  let chouShen = '';
+  const monthSupportsDayMaster =
+    monthElement === dayElement || getGeneratedElement(monthElement) === dayElement;
+  const supportScore = biJianCount + yinCount + (monthSupportsDayMaster ? 1.5 : 0);
+  const consumeScore = shiShangCount + caiCount + guanCount;
+  const isStrong = supportScore - consumeScore >= 1.5;
+  const isWeak = supportScore - consumeScore <= -1.5;
 
-  // 根据格局选取用神
+  let yongElements: string[] = [];
+  let xiElements: string[] = [];
+  let jiElements: string[] = [];
+  let chouElements: string[] = [];
+  let yongTenGods: string[] = [];
+  let xiTenGods: string[] = [];
+  let jiTenGods: string[] = [];
+  let chouTenGods: string[] = [];
+
+  if (isWeak) {
+    yongElements = [resourceElement, peerElement];
+    xiElements = [peerElement, officialElement];
+    jiElements = [wealthElement, outputElement];
+    chouElements = [wealthElement, outputElement, officialElement];
+    yongTenGods = ['印星', '比劫'];
+    xiTenGods = ['比劫', '官杀'];
+    jiTenGods = ['财星', '食伤'];
+    chouTenGods = ['财星', '食伤', '官杀'];
+  } else if (isStrong) {
+    yongElements = [outputElement, wealthElement];
+    xiElements = [officialElement];
+    jiElements = [peerElement, resourceElement];
+    chouElements = [peerElement, resourceElement];
+    yongTenGods = ['食伤', '财星'];
+    xiTenGods = ['官杀'];
+    jiTenGods = ['比劫', '印星'];
+    chouTenGods = ['比劫', '印星'];
+  } else {
+    yongElements = [wealthElement, officialElement];
+    xiElements = [outputElement];
+    jiElements = [peerElement];
+    chouElements = [resourceElement];
+    yongTenGods = ['财星', '官杀'];
+    xiTenGods = ['食伤'];
+    jiTenGods = ['比劫'];
+    chouTenGods = ['印星'];
+  }
+
   switch (geJuName) {
     case '正官格':
     case '七杀格':
-      yongShen = '正官/七杀';
-      xiShen = '正财/偏财';
-      jiShen = '正印/偏印';
-      chouShen = '伤官';
+      yongElements = isWeak ? [resourceElement, officialElement] : [officialElement, wealthElement];
+      xiElements = isWeak ? [peerElement] : [outputElement];
+      jiElements = isWeak ? [wealthElement, outputElement] : [peerElement, resourceElement];
+      chouElements = [outputElement];
+      yongTenGods = isWeak ? ['印星', '官杀'] : ['官杀', '财星'];
+      xiTenGods = isWeak ? ['比劫'] : ['食伤'];
+      jiTenGods = isWeak ? ['财星', '食伤'] : ['比劫', '印星'];
+      chouTenGods = ['食伤'];
       break;
-
     case '正印格':
     case '偏印格':
-      yongShen = '正印/偏印';
-      xiShen = '正官/七杀';
-      jiShen = '比肩/劫财';
-      chouShen = '正财/偏财';
+      yongElements = isStrong ? [wealthElement, outputElement] : [resourceElement, peerElement];
+      xiElements = [officialElement];
+      jiElements = isStrong ? [resourceElement, peerElement] : [wealthElement];
+      chouElements = [wealthElement];
+      yongTenGods = isStrong ? ['财星', '食伤'] : ['印星', '比劫'];
+      xiTenGods = ['官杀'];
+      jiTenGods = isStrong ? ['印星', '比劫'] : ['财星'];
+      chouTenGods = ['财星'];
       break;
-
     case '正财格':
     case '偏财格':
-      yongShen = '正财/偏财';
-      xiShen = '食神/伤官';
-      jiShen = '正官/七杀';
-      chouShen = '比肩/劫财';
+      yongElements = isWeak ? [resourceElement, peerElement] : [wealthElement, outputElement];
+      xiElements = [officialElement];
+      jiElements = isWeak ? [outputElement, wealthElement] : [peerElement, resourceElement];
+      chouElements = isWeak ? [outputElement] : [peerElement];
+      yongTenGods = isWeak ? ['印星', '比劫'] : ['财星', '食伤'];
+      xiTenGods = ['官杀'];
+      jiTenGods = isWeak ? ['食伤', '财星'] : ['比劫', '印星'];
+      chouTenGods = isWeak ? ['食伤'] : ['比劫'];
       break;
-
     case '食神格':
     case '伤官格':
-      yongShen = '食神/伤官';
-      xiShen = '正财/偏财';
-      jiShen = '比肩/劫财';
-      chouShen = '偏印';
+      yongElements = isWeak ? [resourceElement, peerElement] : [outputElement, wealthElement];
+      xiElements = isWeak ? [peerElement] : [officialElement];
+      jiElements = isWeak ? [wealthElement, officialElement] : [resourceElement, peerElement];
+      chouElements = isWeak ? [officialElement] : [resourceElement];
+      yongTenGods = isWeak ? ['印星', '比劫'] : ['食伤', '财星'];
+      xiTenGods = isWeak ? ['比劫'] : ['官杀'];
+      jiTenGods = isWeak ? ['财星', '官杀'] : ['印星', '比劫'];
+      chouTenGods = isWeak ? ['官杀'] : ['印星'];
       break;
-
     case '从财格':
-      yongShen = '正财/偏财';
-      xiShen = '食神/伤官';
-      jiShen = '正官/七杀';
-      chouShen = '比肩/劫财/正印/偏印';
+      yongElements = [wealthElement, outputElement];
+      xiElements = [officialElement];
+      jiElements = [peerElement, resourceElement];
+      chouElements = [peerElement, resourceElement];
+      yongTenGods = ['财星', '食伤'];
+      xiTenGods = ['官杀'];
+      jiTenGods = ['比劫', '印星'];
+      chouTenGods = ['比劫', '印星'];
       break;
-
     case '从杀格':
-      yongShen = '七杀';
-      xiShen = '正财/偏财';
-      jiShen = '食神/伤官';
-      chouShen = '比肩/劫财/正印/偏印';
+      yongElements = [officialElement, wealthElement];
+      xiElements = [resourceElement];
+      jiElements = [peerElement, outputElement];
+      chouElements = [peerElement];
+      yongTenGods = ['官杀', '财星'];
+      xiTenGods = ['印星'];
+      jiTenGods = ['比劫', '食伤'];
+      chouTenGods = ['比劫'];
       break;
-
-    default:
-      // 扶抑法：日主弱用印比，日主强用食伤财官
-      const totalCount = biJianCount + shiShangCount + caiCount + guanCount + yinCount;
-      const riZhuLiLiang = biJianCount + yinCount;
-
-      if (riZhuLiLiang < totalCount / 3) {
-        // 日主弱
-        yongShen = '正印/偏印';
-        xiShen = '比肩/劫财';
-        jiShen = '正官/七杀';
-        chouShen = '食神/伤官/正财/偏财';
-      } else if (riZhuLiLiang > totalCount * 2 / 3) {
-        // 日主强
-        yongShen = '食神/伤官';
-        xiShen = '正财/偏财';
-        jiShen = '正官/七杀';
-        chouShen = '比肩/劫财/正印/偏印';
-      } else {
-        // 日主中和
-        yongShen = '根据具体情况选取';
-        xiShen = '辅助用神';
-        jiShen = '有利十神';
-        chouShen = '不利十神';
-      }
+    case '从儿格':
+      yongElements = [outputElement, wealthElement];
+      xiElements = [officialElement];
+      jiElements = [resourceElement, peerElement];
+      chouElements = [resourceElement];
+      yongTenGods = ['食伤', '财星'];
+      xiTenGods = ['官杀'];
+      jiTenGods = ['印星', '比劫'];
+      chouTenGods = ['印星'];
+      break;
+    case '专旺格':
+      yongElements = [officialElement, wealthElement, outputElement];
+      xiElements = [wealthElement, outputElement];
+      jiElements = [peerElement, resourceElement];
+      chouElements = [peerElement, resourceElement];
+      yongTenGods = ['官杀', '财星', '食伤'];
+      xiTenGods = ['财星', '食伤'];
+      jiTenGods = ['比劫', '印星'];
+      chouTenGods = ['比劫', '印星'];
+      break;
   }
 
-  return { yongShen, xiShen, jiShen, chouShen };
+  return {
+    yongShen: formatElementPreference(yongElements, yongTenGods),
+    xiShen: formatElementPreference(xiElements, xiTenGods),
+    jiShen: formatElementPreference(jiElements, jiTenGods),
+    chouShen: formatElementPreference(chouElements, chouTenGods),
+  };
+}
+
+function getGeneratedElement(element: string): string {
+  const map: { [key: string]: string } = {
+    木: '火',
+    火: '土',
+    土: '金',
+    金: '水',
+    水: '木'
+  };
+  return map[element] || '';
+}
+
+function getGeneratingElement(element: string): string {
+  const map: { [key: string]: string } = {
+    木: '水',
+    火: '木',
+    土: '火',
+    金: '土',
+    水: '金'
+  };
+  return map[element] || '';
+}
+
+function getControlledElement(element: string): string {
+  const map: { [key: string]: string } = {
+    木: '土',
+    火: '金',
+    土: '水',
+    金: '木',
+    水: '火'
+  };
+  return map[element] || '';
+}
+
+function getControllingElement(element: string): string {
+  const map: { [key: string]: string } = {
+    木: '金',
+    火: '水',
+    土: '木',
+    金: '火',
+    水: '土'
+  };
+  return map[element] || '';
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function formatElementPreference(elements: string[], tenGods: string[]): string {
+  const elementText = uniqueValues(elements).join('、');
+  const tenGodText = uniqueValues(tenGods).join('、');
+
+  if (elementText && tenGodText) {
+    return `${elementText}（${tenGodText}）`;
+  }
+
+  return elementText || tenGodText || '需结合全局再定';
 }
 
 /**

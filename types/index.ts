@@ -136,8 +136,10 @@ export interface BaZiResult {
   name?: string;
   occupy?: string;
   sex: string;
-  age: number;          // 实岁
+  age: number;          // 当前口径年龄
+  ageLabel?: '实岁' | '虚岁';
   xuSui?: number;       // 虚岁
+  shiSui?: number;      // 实岁
   shengXiao: string;
   xingZuo: string;
   xingQi: string;
@@ -158,6 +160,10 @@ export interface BaZiResult {
   monthZhi: string;
   dayZhi: string;
   hourZhi: string;
+  yearGanZhi?: string;
+  monthGanZhi?: string;
+  dayGanZhi?: string;
+  hourGanZhi?: string;
 
   // 五行统计
   muCount: number;
@@ -191,6 +197,7 @@ export interface BaZiResult {
 
   // 大运流年系统
   qiYunSui?: number;         // 起运岁数
+  qiYunDate?: string;        // 起运日期
   daYun?: {
     ganZhi: string;          // 大运干支
     startAge: number;        // 起始年龄
@@ -501,10 +508,19 @@ export interface BaZiResult {
 
   // 日主论命
   riZhuLunMing?: string;
+
+  // 人元司令分野
+  renYuanSiLingFenYe?: string;
 }
 
 // 六爻排盘设置
 export interface LiuYaoSettings extends BaseSettings {
+  leapMonthType?: 0 | 1;
+  xuShiSuiType?: 0 | 1;
+  jieQiType?: 0 | 1;
+  yearGanZhiType?: 0 | 1 | 2;
+  monthGanZhiType?: 0 | 1;
+  dayGanZhiType?: 0 | 1;
   paiPanType?: 0 | 1 | 2; // 排盘类型：0=日期起卦, 1=自动起卦(随机), 2=手动起卦
   yaoShu?: number[]; // 爻数，6个数字（自动起卦时使用，6/7/8/9）
   manualYaoShu?: number[]; // 手动爻数，6个数字（手动起卦时使用，0/1/2/3）
@@ -560,6 +576,20 @@ export interface LiuYaoResult {
   lunar: string;
   name?: string;
   occupy?: string;
+  sex?: string;
+  age?: number;
+  ageLabel?: '周岁' | '虚岁';
+  xuSui?: number;
+  shiSui?: number;
+  zao?: string;
+  xingQi?: string;
+  jiJie?: string;
+  shengXiao?: string;
+  xingZuo?: string;
+  yueXiang?: string;
+  yueJiang?: string;
+  yueJiangShen?: string;
+  wuBuYuShi?: boolean;
 
   // 卦象基本信息
   shangGua: string;      // 上卦（如：乾☰）
@@ -630,6 +660,38 @@ export interface LiuYaoResult {
     day: string;     // 日干支
     hour: string;    // 时干支
   };
+  yearGan?: string;
+  monthGan?: string;
+  dayGan?: string;
+  hourGan?: string;
+  yearZhi?: string;
+  monthZhi?: string;
+  dayZhi?: string;
+  hourZhi?: string;
+  yearGanZhi?: string;
+  monthGanZhi?: string;
+  dayGanZhi?: string;
+  hourGanZhi?: string;
+  yearGanWuXing?: string;
+  monthGanWuXing?: string;
+  dayGanWuXing?: string;
+  hourGanWuXing?: string;
+  yearZhiWuXing?: string;
+  monthZhiWuXing?: string;
+  dayZhiWuXing?: string;
+  hourZhiWuXing?: string;
+  yearGanZhiWuXing?: string;
+  monthGanZhiWuXing?: string;
+  dayGanZhiWuXing?: string;
+  hourGanZhiWuXing?: string;
+  yearGanZhiNaYin?: string;
+  monthGanZhiNaYin?: string;
+  dayGanZhiNaYin?: string;
+  hourGanZhiNaYin?: string;
+  yearGanZhiKongWang?: string;
+  monthGanZhiKongWang?: string;
+  dayGanZhiKongWang?: string;
+  hourGanZhiKongWang?: string;
 
   // 节气信息
   jieQi?: {
@@ -637,20 +699,20 @@ export interface LiuYaoResult {
     nextJie: string;      // 下一节
     prevQi: string;       // 上一气
     nextQi: string;       // 下一气
+    prevJieDate?: string;
+    prevJieDay?: number;
+    nextJieDate?: string;
+    nextJieDay?: number;
+    prevQiDate?: string;
+    prevQiDay?: number;
+    nextQiDate?: string;
+    nextQiDay?: number;
+    chuShengJie?: string;
+    chuShengQi?: string;
   };
 
   // 辅助信息
-  xingQi?: string;        // 星期
-  jiJie?: string;         // 季节
-  shengXiao?: string;     // 生肖
-  xingZuo?: string;       // 星座
-  yueXiang?: string;      // 月相
-  yueJiang?: string;      // 月将
-  yueJiangShen?: string;  // 月将神
-  wuBuYuShi?: boolean;    // 五不遇时
   kongWang?: string[];    // 空亡地支（两个）
-  age?: number;           // 年龄（虚岁）
-  zao?: string;           // 造（乾造/坤造）
 
   // 神煞系统
   shenSha?: {
@@ -664,7 +726,13 @@ export interface LiuYaoResult {
 // 大六壬排盘设置
 // 大六壬排盘设置
 export interface DaLiuRenSettings extends BaseSettings {
+  leapMonthType?: 0 | 1; // 0:不使用闰月 1:使用闰月
+  xuShiSuiType?: 0 | 1; // 0:虚岁 1:实岁
+  jieQiType?: 0 | 1; // 0:按天计算 1:按分钟计算
   guiRenType?: 0 | 1 | 2; // 贵人类型：0=自动切换昼夜, 1=昼贵, 2=夜贵
+  yearGanZhiType?: 0 | 1 | 2; // 年干支类型
+  monthGanZhiType?: 0 | 1; // 月干支类型
+  dayGanZhiType?: 0 | 1; // 日干支类型
 }
 
 // 大六壬排盘结果
@@ -673,25 +741,94 @@ export interface DaLiuRenResult {
   lunar: string;
   name?: string;
   occupy?: string;
+  sex?: string;
+  age?: number;
+  zao?: string;
+  xingQi?: string;
+  jiJie?: string;
+  shengXiao?: string;
+  xingZuo?: string;
+  wuBuYuShi?: boolean;
+
+  yearGan?: string;
+  monthGan?: string;
+  dayGan?: string;
+  hourGan?: string;
+  yearZhi?: string;
+  monthZhi?: string;
+  dayZhi?: string;
+  hourZhi?: string;
+  yearGanZhi?: string;
+  monthGanZhi?: string;
+  dayGanZhi?: string;
+  hourGanZhi?: string;
+
+  yearGanWuXing?: string;
+  monthGanWuXing?: string;
+  dayGanWuXing?: string;
+  hourGanWuXing?: string;
+  yearZhiWuXing?: string;
+  monthZhiWuXing?: string;
+  dayZhiWuXing?: string;
+  hourZhiWuXing?: string;
+  yearGanZhiWuXing?: string;
+  monthGanZhiWuXing?: string;
+  dayGanZhiWuXing?: string;
+  hourGanZhiWuXing?: string;
+  yearGanZhiNaYin?: string;
+  monthGanZhiNaYin?: string;
+  dayGanZhiNaYin?: string;
+  hourGanZhiNaYin?: string;
+  yearGanZhiKongWang?: string;
+  monthGanZhiKongWang?: string;
+  dayGanZhiKongWang?: string;
+  hourGanZhiKongWang?: string;
+  wuXingWangShuai?: string[];
+
+  prevJie?: string;
+  prevJieDate?: string;
+  prevJieDay?: number;
+  nextJie?: string;
+  nextJieDate?: string;
+  nextJieDay?: number;
+  chuShengJie?: string;
+  prevQi?: string;
+  prevQiDate?: string;
+  prevQiDay?: number;
+  nextQi?: string;
+  nextQiDate?: string;
+  nextQiDay?: number;
+  chuShengQi?: string;
+  yueXiang?: string;
+  yueJiang?: string;
+  yueJiangShen?: string;
 
   // 盘式
   diPan: string[];        // 地盘（12个地支）
   tianPan: string[];      // 天盘（12个地支）
   shenPan: string[];      // 神盘（12个神将）
+  tianGan?: string[];
 
   // 四课三传
   siKe: string[][];       // 四课（每课2个元素：[上神, 下神]）
+  siKeDunGan?: string[][];
+  siKeShenJiang?: string[][];
   sanChuan: string[];     // 三传（3个地支）
+  sanChuanQuFa?: string;
+  sanChuanDunGan?: string[];
+  sanChuanShenJiang?: string[];
+  sanChuanLiuQin?: string[];
 
   // 类型
   tianDiPanType: string;  // 天地盘类型（如：伏吟盘、返吟盘等）
-  yueJiang?: string;      // 月将（地支）
-  yueJiangShen?: string;  // 月将神（如：神后、大吉等）
 }
 
 // 奇门遁甲排盘设置
 export interface QiMenSettings extends BaseSettings {
-  panType?: 'zhuan' | 'fei'; // 转盘或飞盘
+  panType?: 'zhuan' | 'fei'; // 盘类型（当前仅完成转盘重构，传 fei 会报错）
+
+  // 虚实岁类型（0:虚岁, 1:实岁）
+  xuShiSuiType?: 0 | 1;
 
   // 排盘类型（0:年家奇门, 1:月家奇门, 2:日家奇门, 3:时家奇门）
   paiPanType?: 0 | 1 | 2 | 3;
@@ -724,12 +861,67 @@ export interface QiMenResult {
   lunar: string;
   name?: string;
   occupy?: string;
+  sex?: string;
+  age?: number;
+  zao?: string;
+  xingQi?: string;
+  jiJie?: string;
+  shengXiao?: string;
+  xingZuo?: string;
+  yueXiang?: string;
+  yueJiang?: string;
+  yueJiangShen?: string;
+  wuBuYuShi?: boolean;
 
   // 四柱干支
+  yearGan?: string;
+  monthGan?: string;
+  dayGan?: string;
+  hourGan?: string;
+  yearZhi?: string;
+  monthZhi?: string;
+  dayZhi?: string;
+  hourZhi?: string;
   yearGanZhi?: string;
   monthGanZhi?: string;
   dayGanZhi?: string;
   hourGanZhi?: string;
+  yearGanWuXing?: string;
+  monthGanWuXing?: string;
+  dayGanWuXing?: string;
+  hourGanWuXing?: string;
+  yearZhiWuXing?: string;
+  monthZhiWuXing?: string;
+  dayZhiWuXing?: string;
+  hourZhiWuXing?: string;
+  yearGanZhiWuXing?: string;
+  monthGanZhiWuXing?: string;
+  dayGanZhiWuXing?: string;
+  hourGanZhiWuXing?: string;
+  yearGanZhiNaYin?: string;
+  monthGanZhiNaYin?: string;
+  dayGanZhiNaYin?: string;
+  hourGanZhiNaYin?: string;
+  yearGanZhiKongWang?: string;
+  monthGanZhiKongWang?: string;
+  dayGanZhiKongWang?: string;
+  hourGanZhiKongWang?: string;
+
+  // 节气信息
+  prevJie?: string;
+  prevJieDate?: string;
+  prevJieDay?: number;
+  nextJie?: string;
+  nextJieDate?: string;
+  nextJieDay?: number;
+  chuShengJie?: string;
+  prevQi?: string;
+  prevQiDate?: string;
+  prevQiDay?: number;
+  nextQi?: string;
+  nextQiDate?: string;
+  nextQiDay?: number;
+  chuShengQi?: string;
 
   // 基础信息
   fuTou: string;           // 符头
@@ -738,8 +930,16 @@ export interface QiMenResult {
   yinYangDun: string;      // 阴阳遁
   juShu: string;           // 局数（如：阳遁1局）
   xunShou: string;         // 旬首
+  xunShouYiZhang?: string; // 旬首仪仗
   zhiFu: string;           // 值符
   zhiShi: string;          // 值使
+  tianYi?: string;         // 天乙
+  diYi?: string;           // 地乙
+  taiYi?: string;          // 太乙
+  liuJiaXunKong?: string[];
+  liuJiaXunKongGongWei?: number[];
+  yiMa?: string;
+  yiMaGongWei?: number;
 
   // 值符值使宫位
   oldZhiFuGongWei?: number;   // 值符旋转前宫位
@@ -759,6 +959,7 @@ export interface QiMenResult {
   // 天盘携带的奇仪
   tianPanQiYiTianQinYes?: string[];  // 天禽星携带的奇仪
   tianPanQiYiTianQinNo?: string[];   // 其他九星携带的奇仪
+  liuYiJiXing?: string[];            // 六仪击刑
 
   // 特殊标记
   jiXing?: string[];       // 吉星标记
@@ -780,6 +981,12 @@ export interface QiMenResult {
 
 // 梅花易数排盘设置
 export interface MeiHuaSettings extends BaseSettings {
+  leapMonthType?: 0 | 1;
+  xuShiSuiType?: 0 | 1;
+  jieQiType?: 0 | 1;
+  yearGanZhiType?: 0 | 1 | 2;
+  monthGanZhiType?: 0 | 1;
+  dayGanZhiType?: 0 | 1;
   guaMa?: number; // 卦码
   paiPanType?: 0 | 1 | 2 | 3 | 4; // 排盘类型：0=时间起卦, 1=随机起卦, 2=数字起卦, 3=单数起卦, 4=双数起卦
   shu?: number; // 数字起卦的数字（三位数）
@@ -792,6 +999,11 @@ export interface MeiHuaSettings extends BaseSettings {
 
 // 梅花易数排盘结果
 export interface MeiHuaResult {
+  sex?: string;
+  age?: number;
+  zao?: string;
+  xingQi?: string;
+  jiJie?: string;
   solar: string;
   lunar: string;
   name?: string;
@@ -946,7 +1158,35 @@ export interface MeiHuaResult {
 
 // 紫微斗数排盘设置
 export interface ZiWeiSettings extends BaseSettings {
-  birthHour?: number; // 出生时辰 0-23
+  birthHour?: number; // 兼容旧版单独时辰输入
+  leapMonthType?: 0 | 1; // 0:不使用闰月, 1:使用闰月
+  xuShiSuiType?: 0 | 1; // 0:虚岁, 1:实岁
+  jieQiType?: 0 | 1; // 0:按天计算, 1:按分钟计算
+  wuXingJuType?: 0 | 1; // 0:按年干+命宫地支, 1:按命宫天干+命宫地支
+  yearGanZhiType?: 0 | 1 | 2; // 年干支类型
+  monthGanZhiType?: 0 | 1; // 月干支类型
+  dayGanZhiType?: 0 | 1; // 日干支类型
+}
+
+export interface ZiWeiGongWei {
+  name: string;
+  tianGan?: string;
+  diZhi?: string;
+  isMingGong?: boolean;
+  isShenGong?: boolean;
+  zhuXing: string[];
+  zhuXingGuanXi?: string[];
+  auxStars?: string[];
+  minorStars?: string[];
+  siHua?: string[];
+  siHuaGuanXi?: string[];
+  allStars?: string[];
+  allStarMarks?: string[];
+  allStarRelations?: string[];
+  zhangSheng?: string;
+  boShi?: string;
+  liuNianSuiQian?: string;
+  liuNianJiangQian?: string;
 }
 
 // 紫微斗数排盘结果
@@ -954,22 +1194,101 @@ export interface ZiWeiResult {
   solar: string;
   lunar: string;
   name?: string;
+  occupy?: string;
   sex: string;
+  age?: number;
+  zao?: string;
+  xingQi?: string;
+  jiJie?: string;
+  shengXiao?: string;
+  xingZuo?: string;
+  yueXiang?: string;
+  yueJiang?: string;
+  yueJiangShen?: string;
+  wuBuYuShi?: boolean;
+
+  yearGan?: string;
+  monthGan?: string;
+  dayGan?: string;
+  hourGan?: string;
+  yearZhi?: string;
+  monthZhi?: string;
+  dayZhi?: string;
+  hourZhi?: string;
+  yearGanZhi?: string;
+  monthGanZhi?: string;
+  dayGanZhi?: string;
+  hourGanZhi?: string;
+  yearGanWuXing?: string;
+  monthGanWuXing?: string;
+  dayGanWuXing?: string;
+  hourGanWuXing?: string;
+  yearZhiWuXing?: string;
+  monthZhiWuXing?: string;
+  dayZhiWuXing?: string;
+  hourZhiWuXing?: string;
+  yearGanZhiWuXing?: string;
+  monthGanZhiWuXing?: string;
+  dayGanZhiWuXing?: string;
+  hourGanZhiWuXing?: string;
+  yearGanZhiNaYin?: string;
+  monthGanZhiNaYin?: string;
+  dayGanZhiNaYin?: string;
+  hourGanZhiNaYin?: string;
+  yearGanZhiKongWang?: string;
+  monthGanZhiKongWang?: string;
+  dayGanZhiKongWang?: string;
+  hourGanZhiKongWang?: string;
+  prevJie?: string;
+  prevJieDate?: string;
+  prevJieDay?: number;
+  nextJie?: string;
+  nextJieDate?: string;
+  nextJieDay?: number;
+  chuShengJie?: string;
+  prevQi?: string;
+  prevQiDate?: string;
+  prevQiDay?: number;
+  nextQi?: string;
+  nextQiDate?: string;
+  nextQiDay?: number;
+  chuShengQi?: string;
 
   // 命盘信息
   wuXingJu: string;
   mingGong: string;
   shenGong: string;
+  mingGongGongWei?: number;
+  shenGongGongWei?: number;
+  ziWeiXingGongWei?: number;
+  tianFuXingGongWei?: number;
+  ziWeiXingGongDiZhi?: string;
+  tianFuXingGongDiZhi?: string;
+  shiErGongDiZhi?: string[];
+  shiErGongTianGan?: string[];
+  shiErMingGong?: string[];
+  shiErShenGong?: string[];
+  ziWeiXingXiZhuXing?: string[];
+  tianFuXingXiZhuXing?: string[];
+  shiZhiZhuXing?: string[];
+  yueZhiZhuXing?: string[];
+  nianGanZhuXing?: string[];
+  nianZhiZhuXing?: string[];
+  dayZhuXing?: string[];
+  shiErZhangSheng?: string[];
+  jieLuKongWang?: string[];
+  xunZhongKongWang?: string[];
+  tianShangTianShiXing?: string[];
+  shiErGongBoShi?: string[];
+  liuNianSuiQianZhuXing?: string[];
+  liuNianJiangQianZhuXing?: string[];
+  shiErGongZhuXing?: string[][];
+  shiErGongZhuXingMark?: string[][];
+  shiErGongZhuXingGuanXi?: string[][];
 
   // 十二宫
   gongWei: {
-    [key: string]: {
-      name: string;
-      zhuXing: string[];
-      auxStars?: string[];
-      minorStars?: string[];
-      siHua?: string[];
-    };
+    [key: string]: ZiWeiGongWei;
   };
 
   // 四化
@@ -977,6 +1296,8 @@ export interface ZiWeiResult {
   huaQuan: string;
   huaKe: string;
   huaJi: string;
+  shiErGongSiHuaXing?: string[][];
+  shiErGongSiHuaXingGuanXi?: string[][];
 
   // 解读
   huaLuJieDu?: string;
@@ -991,6 +1312,8 @@ export interface ZiWeiResult {
   // 命主身主
   mingZhu?: string;       // 命主星
   shenZhu?: string;       // 身主星
+  ziDou?: string;
+  liuDou?: string;
 }
 
 // 通用排盘类型

@@ -65,7 +65,7 @@
 
 /* 焦点可见性 */
 *:focus-visible {
-  outline: 2px solid #8b5cf6;
+  outline: 2px solid var(--focus-ring, #b45309);
   outline-offset: 2px;
 }
 

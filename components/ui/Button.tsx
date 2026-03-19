@@ -20,25 +20,27 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'rounded-lg font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles = 'rounded-[22px] font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2';
 
   const sizeStyles = {
     sm: 'px-3 py-1.5 text-sm',
     md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg'
+    lg: 'px-6 py-3.5 text-lg'
   };
 
   const variantStyles = {
-    primary: gradient || 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:shadow-lg focus:ring-purple-500',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500',
-    danger: 'bg-gradient-to-r from-red-500 to-orange-500 text-white hover:shadow-lg focus:ring-red-500',
-    success: 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-lg focus:ring-green-500'
+    primary: gradient || 'bg-gradient-to-r from-stone-900 via-stone-800 to-amber-700 text-white shadow-lg shadow-amber-900/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-amber-900/25 focus:ring-amber-500',
+    secondary: 'border border-[rgba(117,76,40,0.14)] bg-[rgba(255,252,247,0.88)] text-[#5b4430] shadow-sm hover:border-[#a27140] hover:bg-[#fff7ed] focus:ring-amber-500',
+    danger: 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-900/20 hover:-translate-y-0.5 hover:shadow-xl focus:ring-red-500',
+    success: 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-emerald-900/20 hover:-translate-y-0.5 hover:shadow-xl focus:ring-green-500'
   };
 
   const widthStyle = fullWidth ? 'w-full' : '';
   const disabledStyle = (disabled || loading) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer';
 
-  const finalGradient = gradient ? `bg-gradient-to-r ${gradient}` : variantStyles[variant];
+  const finalGradient = gradient
+    ? `bg-gradient-to-r ${gradient} text-white shadow-lg shadow-amber-900/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-amber-900/25 focus:ring-amber-500`
+    : variantStyles[variant];
 
   return (
     <button

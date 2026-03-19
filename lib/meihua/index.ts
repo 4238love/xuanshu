@@ -1,693 +1,615 @@
+// @ts-ignore - lunar-javascript types are incomplete
 import { Solar, Lunar } from 'lunar-javascript';
-import { MeiHuaSettings, MeiHuaResult } from '@/types';
-import { BA_GUA, BA_GUA_SYMBOL, LIU_SHI_SI_GUA, DI_ZHI, TIAN_GAN, WU_XING_MAP, NA_YIN, SHENG_XIAO } from '../constants';
-import { parseDate, formatDate, getWuXing, getNaYin, getXingZuo } from '../utils/common';
-import { BA_GUA_WU_XING, BA_GUA_FANG_WEI, DI_ZHI_SHU, YONG_TI_GUAN_XI, BIAN_GUA, GUA_CI, getYaoMing, getYaoXiang, getYaoCi, YUE_JIANG, KONG_WANG, WU_BU_YU_SHI } from './constants';
+import { MeiHuaResult, MeiHuaSettings } from '@/types';
+import { formatDate, getRealAge } from '../utils/common';
+import { parseLunarDateTimeString, parseSolarDateTimeString, solarPartsToDate } from '../utils/dateTime';
+import { BA_GUA_SYMBOL } from '../constants';
+import {
+  BIAN_GUA,
+  BA_GUA_FANG_WEI,
+  BA_GUA_WU_XING,
+  YONG_TI_GUAN_XI,
+} from './constants';
+import {
+  DI_ZHI_SHU,
+  DI_ZHI_WU_XING,
+  GUA_NAME_AND_AS,
+  HU_CUO_ZONG_FU,
+  KONG_WANG,
+  LIU_SHI_SI_GUA,
+  LIU_SHI_SI_GUA_AS,
+  LIU_SHI_SI_GUA_LIU_YAO_AS,
+  LIU_SHI_SI_GUA_LIU_YAO_YAO_CI,
+  LIU_SHI_SI_GUA_LIU_YAO_YAO_MING,
+  LIU_SHI_SI_GUA_SHEN_CI,
+  NA_YIN,
+  TIAN_GAN_WU_XING,
+  WU_BU_YU_SHI,
+  XIAN_TIAN_BA_GUA,
+  YUE_JIANG,
+} from '../liuyao/liuyaoMaps';
 
-/**
- * 梅花易数排盘类
- */
+type JieQiRef = {
+  toString(): string;
+  getSolar(): {
+    getYear(): number;
+    getMonth(): number;
+    getDay(): number;
+    getHour(): number;
+    getMinute(): number;
+    getSecond(): number;
+    toYmdHms(): string;
+  };
+};
+
+type GuaNumbers = {
+  shangGuaNumber: number;
+  xiaGuaNumber: number;
+  dongYaoNumber: number;
+};
+
+type GuaInfo = {
+  shangGuaName: string;
+  shangGuaAs: string;
+  xiaGuaName: string;
+  xiaGuaAs: string;
+  guaName: string;
+  guaAs: string;
+};
+
+function solarToDate(solar: {
+  getYear(): number;
+  getMonth(): number;
+  getDay(): number;
+  getHour(): number;
+  getMinute(): number;
+  getSecond(): number;
+}): Date {
+  return new Date(
+    solar.getYear(),
+    solar.getMonth() - 1,
+    solar.getDay(),
+    solar.getHour(),
+    solar.getMinute(),
+    solar.getSecond()
+  );
+}
+
+function diffParts(start: Date, end: Date) {
+  let diff = Math.abs(end.getTime() - start.getTime());
+  const day = Math.floor(diff / (24 * 60 * 60 * 1000));
+  diff -= day * 24 * 60 * 60 * 1000;
+  const hour = Math.floor(diff / (60 * 60 * 1000));
+  diff -= hour * 60 * 60 * 1000;
+  const minute = Math.floor(diff / (60 * 1000));
+  diff -= minute * 60 * 1000;
+  const second = Math.floor(diff / 1000);
+
+  return { day, hour, minute, second };
+}
+
+function formatBirthMarker(name: string, relation: '后' | '前', start: Date, end: Date) {
+  const { day, hour, minute, second } = diffParts(start, end);
+  return `${name}${relation}${day}天${hour}小时${minute}分${second}秒`;
+}
+
+function calculateAge(date: Date, xuShiSuiType: 0 | 1) {
+  if (xuShiSuiType === 1) {
+    return getRealAge(date);
+  }
+
+  const now = new Date();
+  const realAge = getRealAge(date, now);
+  const passedBirthday =
+    now.getMonth() > date.getMonth() ||
+    (now.getMonth() === date.getMonth() && now.getDate() >= date.getDate());
+
+  return realAge + (passedBirthday ? 1 : 0);
+}
+
+function formatKongWang(value?: [string, string]): string | undefined {
+  return value ? value.join('、') : undefined;
+}
+
+function normalizeGuaNumber(value: number) {
+  const mod = value % 8;
+  return mod === 0 ? 8 : mod;
+}
+
+function normalizeDongYaoNumber(value: number) {
+  const mod = value % 6;
+  return mod === 0 ? 6 : mod;
+}
+
+function sumDigits(value: number) {
+  return String(Math.abs(Math.trunc(value)))
+    .split('')
+    .reduce((total, digit) => total + Number(digit), 0);
+}
+
+function parseGuaMaValue(guaMa?: number): GuaNumbers | null {
+  if (!guaMa) {
+    return null;
+  }
+
+  const digits = String(Math.abs(Math.trunc(guaMa)));
+  if (digits.length < 3) {
+    return null;
+  }
+
+  const [shang, xia, dong] = digits
+    .slice(0, 3)
+    .split('')
+    .map((digit) => Number(digit));
+
+  if ([shang, xia, dong].some((digit) => Number.isNaN(digit))) {
+    return null;
+  }
+
+  return {
+    shangGuaNumber: normalizeGuaNumber(shang),
+    xiaGuaNumber: normalizeGuaNumber(xia),
+    dongYaoNumber: normalizeDongYaoNumber(dong),
+  };
+}
+
 export class MeiHuaPaiPan {
-  private settings: MeiHuaSettings;
-  private solar: Solar;
-  private lunar: Lunar;
-  private guaMa: number;
+  private settings: Required<
+    Pick<
+      MeiHuaSettings,
+      | 'name'
+      | 'occupy'
+      | 'sex'
+      | 'date'
+      | 'dateType'
+      | 'leapMonthType'
+      | 'xuShiSuiType'
+      | 'jieQiType'
+      | 'yearGanZhiType'
+      | 'monthGanZhiType'
+      | 'dayGanZhiType'
+      | 'guaMa'
+      | 'paiPanType'
+      | 'shu'
+      | 'danShu'
+      | 'shuangShuOne'
+      | 'shuangShuTwo'
+      | 'shangXiaGuaType'
+      | 'dongYaoType'
+    >
+  >;
+
+  private solar!: Solar;
+  private lunar!: Lunar;
+  private solarDate!: Date;
+  private eightChar: any;
+
+  private yearGanZhi = '';
+  private monthGanZhi = '';
+  private dayGanZhi = '';
+  private hourGanZhi = '';
+  private yearGan = '';
+  private monthGan = '';
+  private dayGan = '';
+  private hourGan = '';
+  private yearZhi = '';
+  private monthZhi = '';
+  private dayZhi = '';
+  private hourZhi = '';
+
+  private prevJie!: JieQiRef;
+  private nextJie!: JieQiRef;
+  private prevQi!: JieQiRef;
+  private nextQi!: JieQiRef;
+
+  private shangGuaNumber = 1;
+  private xiaGuaNumber = 1;
+  private dongYaoNumber = 1;
+  private guaMa = 111;
 
   constructor(settings: MeiHuaSettings) {
-    this.settings = settings;
+    this.settings = {
+      name: settings.name ?? '',
+      occupy: settings.occupy ?? '',
+      sex: settings.sex ?? 1,
+      date: settings.date ?? '2024-01-01 00:00:00',
+      dateType: settings.dateType ?? 0,
+      leapMonthType: settings.leapMonthType ?? 0,
+      xuShiSuiType: settings.xuShiSuiType ?? 0,
+      jieQiType: settings.jieQiType ?? 1,
+      yearGanZhiType: settings.yearGanZhiType ?? 2,
+      monthGanZhiType: settings.monthGanZhiType ?? 1,
+      dayGanZhiType: settings.dayGanZhiType ?? 0,
+      guaMa: settings.guaMa ?? 0,
+      paiPanType: settings.paiPanType ?? 0,
+      shu: settings.shu ?? 123,
+      danShu: settings.danShu ?? 12345,
+      shuangShuOne: settings.shuangShuOne ?? 12,
+      shuangShuTwo: settings.shuangShuTwo ?? 34,
+      shangXiaGuaType: settings.shangXiaGuaType ?? 0,
+      dongYaoType: settings.dongYaoType ?? 0,
+    };
 
-    // 解析日期
-    const date = parseDate(this.settings.date);
-
-    if (this.settings.dateType === 0) {
-      this.solar = Solar.fromDate(date);
-      this.lunar = this.solar.getLunar();
-    } else {
-      this.lunar = Lunar.fromDate(date);
-      this.solar = this.lunar.getSolar();
-    }
-
-    // 获取或生成卦码
-    this.guaMa = this.settings.guaMa || this.generateGuaMa();
+    this.initializeDate();
+    this.initializeGanZhi();
+    this.initializeJieQi();
+    this.initializeNumbers();
   }
 
-  /**
-   * 获取排盘结果
-   */
   public getPaiPan(): MeiHuaResult {
-    // 解析卦码
-    const shangGuaNum = Math.floor(this.guaMa / 100);
-    const xiaGuaNum = Math.floor((this.guaMa % 100) / 10);
-    const dongYao = this.guaMa % 10;
+    const shangGuaName = XIAN_TIAN_BA_GUA[this.shangGuaNumber] ?? '';
+    const xiaGuaName = XIAN_TIAN_BA_GUA[this.xiaGuaNumber] ?? '';
+    const benGuaAs = this.getGuaAsByNumbers(this.shangGuaNumber, this.xiaGuaNumber);
+    const { shangGuaNumber: bianShang, xiaGuaNumber: bianXia } = this.getBianGuaNumbers();
+    const bianGuaAs = this.getGuaAsByNumbers(bianShang, bianXia);
+    const [huGuaAs = '', cuoGuaAs = '', zongGuaAs = ''] = HU_CUO_ZONG_FU[benGuaAs] ?? ['', '', ''];
 
-    // 获取卦象
-    const shangGua = BA_GUA[shangGuaNum - 1];
-    const xiaGua = BA_GUA[xiaGuaNum - 1];
+    const benGuaInfo = this.getGuaInfoByAs(benGuaAs);
+    const bianGuaInfo = this.getGuaInfoByAs(bianGuaAs);
+    const huGuaInfo = this.getGuaInfoByAs(huGuaAs);
+    const cuoGuaInfo = this.getGuaInfoByAs(cuoGuaAs);
+    const zongGuaInfo = this.getGuaInfoByAs(zongGuaAs);
 
-    // 计算本卦
-    const benGua = this.getGuaCode(shangGuaNum) + this.getGuaCode(xiaGuaNum);
+    const shangGuaYong = this.dongYaoNumber > 3;
+    const tiGua = shangGuaYong ? xiaGuaName : shangGuaName;
+    const yongGua = shangGuaYong ? shangGuaName : xiaGuaName;
+    const prevJieDate = this.prevJie.getSolar().toYmdHms();
+    const nextJieDate = this.nextJie.getSolar().toYmdHms();
+    const prevQiDate = this.prevQi.getSolar().toYmdHms();
+    const nextQiDate = this.nextQi.getSolar().toYmdHms();
+    const yueJiangData = this.getYueJiangData();
 
-    // 计算变卦（动爻变化）
-    const bianGua = this.calculateBianGua(benGua, dongYao);
-
-    // 计算互卦
-    const huGua = this.calculateHuGua(benGua);
-
-    // 计算错卦
-    const cuoGua = this.calculateCuoGua(benGua);
-
-    // 计算综卦
-    const zongGua = this.calculateZongGua(benGua);
-
-    // 判断体用关系
-    const shangGuaYong = dongYao > 3; // 动爻在4、5、6爻，上卦为用
-    const tiGua = shangGuaYong ? xiaGua : shangGua;
-    const yongGua = shangGuaYong ? shangGua : xiaGua;
-
-    // 获取体用关系
-    const tiYongGuanXi = this.getTiYongGuanXi(yongGua, tiGua);
-
-    // 获取卦象五行和方位
-    const benGuaWuXing = this.getGuaWuXing(shangGua, xiaGua);
-    const benGuaFangWei = this.getGuaFangWei(shangGua, xiaGua);
-
-    // 获取八字干支
-    const eightChar = this.lunar.getEightChar();
-    const yearGan = eightChar.getYearGan();
-    const yearZhi = eightChar.getYearZhi();
-    const monthGan = eightChar.getMonthGan();
-    const monthZhi = eightChar.getMonthZhi();
-    const dayGan = eightChar.getDayGan();
-    const dayZhi = eightChar.getDayZhi();
-    const hourGan = eightChar.getTimeGan();
-    const hourZhi = eightChar.getTimeZhi();
-
-    // 获取生肖和星座
-    const shengXiao = SHENG_XIAO[DI_ZHI.indexOf(yearZhi)];
-    const xingZuo = getXingZuo(this.solar.getMonth(), this.solar.getDay());
-
-    // 获取卦名
-    const benGuaMing = this.getGuaMingByCode(benGua);
-    const bianGuaMing = this.getGuaMingByCode(bianGua);
-    const huGuaMing = this.getGuaMingByCode(huGua);
-    const cuoGuaMing = this.getGuaMingByCode(cuoGua);
-    const zongGuaMing = this.getGuaMingByCode(zongGua);
-
-    const result: MeiHuaResult = {
-      solar: formatDate(new Date(
-        this.solar.getYear(),
-        this.solar.getMonth() - 1,
-        this.solar.getDay(),
-        this.solar.getHour(),
-        this.solar.getMinute(),
-        this.solar.getSecond()
-      )),
+    return {
+      solar: formatDate(this.solarDate),
       lunar: this.lunar.toString(),
-      name: this.settings.name,
-      occupy: this.settings.occupy,
+      name: this.settings.name || undefined,
+      occupy: this.settings.occupy || undefined,
+      sex: this.settings.sex === 1 ? '男' : '女',
+      age: calculateAge(this.solarDate, this.settings.xuShiSuiType),
+      zao: this.settings.sex === 1 ? '乾造' : '坤造',
+      xingQi: `周${this.lunar.getWeekInChinese()}`,
+      jiJie: this.lunar.getSeason(),
 
       guaMa: this.guaMa,
-      shangGua: shangGua + '(' + BA_GUA_SYMBOL[shangGua] + ')',
-      xiaGua: xiaGua + '(' + BA_GUA_SYMBOL[xiaGua] + ')',
-      dongYao,
-      benGua: benGuaMing,
-      bianGua: bianGuaMing,
-      huGua: huGuaMing,
-      cuoGua: cuoGuaMing,
-      zongGua: zongGuaMing,
+      shangGua: this.formatTrigram(shangGuaName),
+      xiaGua: this.formatTrigram(xiaGuaName),
+      dongYao: this.dongYaoNumber,
+      benGua: benGuaInfo.guaName,
+      bianGua: bianGuaInfo.guaName,
+      huGua: huGuaInfo.guaName,
+      cuoGua: cuoGuaInfo.guaName,
+      zongGua: zongGuaInfo.guaName,
 
-      // 体用关系
       tiGua,
       yongGua,
-      tiGuaWuXing: BA_GUA_WU_XING[tiGua],
-      yongGuaWuXing: BA_GUA_WU_XING[yongGua],
-      tiYongGuanXi,
+      tiGuaWuXing: BA_GUA_WU_XING[tiGua] ?? '',
+      yongGuaWuXing: BA_GUA_WU_XING[yongGua] ?? '',
+      tiYongGuanXi: YONG_TI_GUAN_XI[`${yongGua}${tiGua}`] ?? '',
 
-      // 卦象五行和方位
-      benGuaWuXing,
-      benGuaFangWei,
+      benGuaWuXing: `上卦${BA_GUA_WU_XING[shangGuaName] ?? ''}，下卦${BA_GUA_WU_XING[xiaGuaName] ?? ''}`,
+      benGuaFangWei: `上卦${BA_GUA_FANG_WEI[shangGuaName] ?? ''}，下卦${BA_GUA_FANG_WEI[xiaGuaName] ?? ''}`,
 
-      // 干支系统
-      yearGan,
-      monthGan,
-      dayGan,
-      hourGan,
-      yearZhi,
-      monthZhi,
-      dayZhi,
-      hourZhi,
-      yearGanZhi: yearGan + yearZhi,
-      monthGanZhi: monthGan + monthZhi,
-      dayGanZhi: dayGan + dayZhi,
-      hourGanZhi: hourGan + hourZhi,
+      yearGan: this.yearGan,
+      monthGan: this.monthGan,
+      dayGan: this.dayGan,
+      hourGan: this.hourGan,
+      yearZhi: this.yearZhi,
+      monthZhi: this.monthZhi,
+      dayZhi: this.dayZhi,
+      hourZhi: this.hourZhi,
+      yearGanZhi: this.yearGanZhi,
+      monthGanZhi: this.monthGanZhi,
+      dayGanZhi: this.dayGanZhi,
+      hourGanZhi: this.hourGanZhi,
+      yearGanWuXing: TIAN_GAN_WU_XING[this.yearGan],
+      monthGanWuXing: TIAN_GAN_WU_XING[this.monthGan],
+      dayGanWuXing: TIAN_GAN_WU_XING[this.dayGan],
+      hourGanWuXing: TIAN_GAN_WU_XING[this.hourGan],
+      yearZhiWuXing: DI_ZHI_WU_XING[this.yearZhi],
+      monthZhiWuXing: DI_ZHI_WU_XING[this.monthZhi],
+      dayZhiWuXing: DI_ZHI_WU_XING[this.dayZhi],
+      hourZhiWuXing: DI_ZHI_WU_XING[this.hourZhi],
+      yearNaYin: NA_YIN[this.yearGanZhi],
+      monthNaYin: NA_YIN[this.monthGanZhi],
+      dayNaYin: NA_YIN[this.dayGanZhi],
+      hourNaYin: NA_YIN[this.hourGanZhi],
+      yearKongWang: formatKongWang(KONG_WANG[this.yearGanZhi]),
+      monthKongWang: formatKongWang(KONG_WANG[this.monthGanZhi]),
+      dayKongWang: formatKongWang(KONG_WANG[this.dayGanZhi]),
+      hourKongWang: formatKongWang(KONG_WANG[this.hourGanZhi]),
 
-      // 干支五行
-      yearGanWuXing: getWuXing(yearGan),
-      monthGanWuXing: getWuXing(monthGan),
-      dayGanWuXing: getWuXing(dayGan),
-      hourGanWuXing: getWuXing(hourGan),
-      yearZhiWuXing: getWuXing(yearZhi),
-      monthZhiWuXing: getWuXing(monthZhi),
-      dayZhiWuXing: getWuXing(dayZhi),
-      hourZhiWuXing: getWuXing(hourZhi),
-
-      // 干支纳音
-      yearNaYin: getNaYin(yearGan + yearZhi),
-      monthNaYin: getNaYin(monthGan + monthZhi),
-      dayNaYin: getNaYin(dayGan + dayZhi),
-      hourNaYin: getNaYin(hourGan + hourZhi),
-
-      // 干支空亡
-      yearKongWang: this.getKongWang(yearGan, yearZhi),
-      monthKongWang: this.getKongWang(monthGan, monthZhi),
-      dayKongWang: this.getKongWang(dayGan, dayZhi),
-      hourKongWang: this.getKongWang(hourGan, hourZhi),
-
-      // 节气信息
-      ...this.getJieQiInfo(),
-
-      // 月将和月将神
-      yueJiang: this.calculateYueJiang()[0],
-      yueJiangShen: this.calculateYueJiang()[1],
-
-      // 卦辞
-      benGuaGuaCi: this.getGuaCi(benGua),
-      bianGuaGuaCi: this.getGuaCi(bianGua),
-      huGuaGuaCi: this.getGuaCi(huGua),
-      cuoGuaGuaCi: this.getGuaCi(cuoGua),
-      zongGuaGuaCi: this.getGuaCi(zongGua),
-
-      // 六爻详细信息
-      benGuaLiuYao: this.getLiuYaoInfo(benGua, benGuaMing),
-      bianGuaLiuYao: this.getLiuYaoInfo(bianGua, bianGuaMing),
-      huGuaLiuYao: this.getLiuYaoInfo(huGua, huGuaMing),
-      cuoGuaLiuYao: this.getLiuYaoInfo(cuoGua, cuoGuaMing),
-      zongGuaLiuYao: this.getLiuYaoInfo(zongGua, zongGuaMing),
-
-      // 卦象分解
-      benGuaShangGuaName: shangGua,
-      benGuaXiaGuaName: xiaGua,
-      benGuaShangGuaAs: BA_GUA_SYMBOL[shangGua],
-      benGuaXiaGuaAs: BA_GUA_SYMBOL[xiaGua],
-
-      bianGuaShangGuaName: this.getShangGuaName(bianGua),
-      bianGuaXiaGuaName: this.getXiaGuaName(bianGua),
-      bianGuaShangGuaAs: BA_GUA_SYMBOL[this.getShangGuaName(bianGua)],
-      bianGuaXiaGuaAs: BA_GUA_SYMBOL[this.getXiaGuaName(bianGua)],
-
-      huGuaShangGuaName: this.getShangGuaName(huGua),
-      huGuaXiaGuaName: this.getXiaGuaName(huGua),
-      huGuaShangGuaAs: BA_GUA_SYMBOL[this.getShangGuaName(huGua)],
-      huGuaXiaGuaAs: BA_GUA_SYMBOL[this.getXiaGuaName(huGua)],
-
-      cuoGuaShangGuaName: this.getShangGuaName(cuoGua),
-      cuoGuaXiaGuaName: this.getXiaGuaName(cuoGua),
-      cuoGuaShangGuaAs: BA_GUA_SYMBOL[this.getShangGuaName(cuoGua)],
-      cuoGuaXiaGuaAs: BA_GUA_SYMBOL[this.getXiaGuaName(cuoGua)],
-
-      zongGuaShangGuaName: this.getShangGuaName(zongGua),
-      zongGuaXiaGuaName: this.getXiaGuaName(zongGua),
-      zongGuaShangGuaAs: BA_GUA_SYMBOL[this.getShangGuaName(zongGua)],
-      zongGuaXiaGuaAs: BA_GUA_SYMBOL[this.getXiaGuaName(zongGua)],
-
-      // 辅助信息
-      shengXiao,
-      xingZuo,
-      yueXiang: this.getYueXiang(),
-      wuBuYuShi: this.isWuBuYuShi(dayGan, hourZhi)
-    };
-
-    return result;
-  }
-
-  /**
-   * 获取卦辞
-   */
-  private getGuaCi(guaCode: string): string {
-    return GUA_CI[guaCode] || '卦辞暂缺';
-  }
-
-  /**
-   * 获取六爻信息
-   */
-  private getLiuYaoInfo(guaCode: string, guaMing: string): {
-    yaoMing: string[];
-    yaoXiang: string[];
-    yaoCi: string[];
-  } {
-    const yaoMing = getYaoMing(guaCode);
-    const yaoXiang = getYaoXiang(guaCode);
-    const yaoCi = getYaoCi(guaMing, yaoMing);
-
-    return {
-      yaoMing,
-      yaoXiang,
-      yaoCi
-    };
-  }
-
-  /**
-   * 获取上卦名称
-   */
-  private getShangGuaName(guaCode: string): string {
-    const shangGuaCode = guaCode.substring(0, 3);
-    const codes = ['111', '110', '101', '100', '011', '010', '001', '000'];
-    const index = codes.indexOf(shangGuaCode);
-    return index !== -1 ? BA_GUA[index] : '';
-  }
-
-  /**
-   * 获取下卦名称
-   */
-  private getXiaGuaName(guaCode: string): string {
-    const xiaGuaCode = guaCode.substring(3, 6);
-    const codes = ['111', '110', '101', '100', '011', '010', '001', '000'];
-    const index = codes.indexOf(xiaGuaCode);
-    return index !== -1 ? BA_GUA[index] : '';
-  }
-
-  /**
-   * 获取月相
-   */
-  private getYueXiang(): string {
-    const day = this.lunar.getDay();
-
-    if (day === 1) return '朔';
-    if (day <= 7) return '上弦';
-    if (day === 15) return '望';
-    if (day <= 22) return '下弦';
-    return '晦';
-  }
-
-  /**
-   * 判断是否为五不遇时
-   */
-  private isWuBuYuShi(dayGan: string, hourZhi: string): boolean {
-    const wuBuYuShi: { [key: string]: string } = {
-      '甲': '申',
-      '乙': '酉',
-      '丙': '戌',
-      '丁': '亥',
-      '戊': '子',
-      '己': '丑',
-      '庚': '寅',
-      '辛': '卯',
-      '壬': '辰',
-      '癸': '巳'
-    };
-
-    return wuBuYuShi[dayGan] === hourZhi;
-  }
-
-  /**
-   * 获取卦象五行
-   */
-  private getGuaWuXing(shangGua: string, xiaGua: string): string {
-    const shangWuXing = BA_GUA_WU_XING[shangGua];
-    const xiaWuXing = BA_GUA_WU_XING[xiaGua];
-    return `上卦${shangWuXing}，下卦${xiaWuXing}`;
-  }
-
-  /**
-   * 获取卦象方位
-   */
-  private getGuaFangWei(shangGua: string, xiaGua: string): string {
-    const shangFangWei = BA_GUA_FANG_WEI[shangGua];
-    const xiaFangWei = BA_GUA_FANG_WEI[xiaGua];
-    return `上卦${shangFangWei}，下卦${xiaFangWei}`;
-  }
-
-  /**
-   * 获取空亡
-   */
-  private getKongWang(gan: string, zhi: string): string {
-    const ganIndex = TIAN_GAN.indexOf(gan);
-    const zhiIndex = DI_ZHI.indexOf(zhi);
-
-    if (ganIndex === -1 || zhiIndex === -1) return '';
-
-    // 计算旬首
-    const xunShouGanIndex = ganIndex;
-    const xunShouZhiIndex = zhiIndex;
-
-    // 空亡地支：旬首后的两个地支
-    const kongWang1Index = (xunShouZhiIndex + 10) % 12;
-    const kongWang2Index = (xunShouZhiIndex + 11) % 12;
-
-    return DI_ZHI[kongWang1Index] + '、' + DI_ZHI[kongWang2Index];
-  }
-
-  /**
-   * 获取节气信息
-   */
-  private getJieQiInfo(): {
-    prevJie?: string;
-    prevJieDate?: string;
-    prevJieDay?: number;
-    nextJie?: string;
-    nextJieDate?: string;
-    nextJieDay?: number;
-    prevQi?: string;
-    prevQiDate?: string;
-    prevQiDay?: number;
-    nextQi?: string;
-    nextQiDate?: string;
-    nextQiDay?: number;
-  } {
-    const currentDate = this.solar.toYmd();
-    const jieQiList = this.lunar.getJieQiList();
-    const jieQiTable = this.lunar.getJieQiTable();
-
-    let prevJie = '';
-    let prevJieDate = '';
-    let nextJie = '';
-    let nextJieDate = '';
-    let prevQi = '';
-    let prevQiDate = '';
-    let nextQi = '';
-    let nextQiDate = '';
-
-    // 节气列表（奇数为节，偶数为气）
-    const jieList = ['立春', '惊蛰', '清明', '立夏', '芒种', '小暑', '立秋', '白露', '寒露', '立冬', '大雪', '小寒'];
-    const qiList = ['雨水', '春分', '谷雨', '小满', '夏至', '大暑', '处暑', '秋分', '霜降', '小雪', '冬至', '大寒'];
-
-    // 查找上一节和下一节
-    for (let i = 0; i < jieQiList.length; i++) {
-      const jieQiName = jieQiList[i];
-      const jieQiDate = jieQiTable[jieQiName];
-
-      if (!jieQiDate) continue;
-
-      const isJie = jieList.includes(jieQiName);
-      const isQi = qiList.includes(jieQiName);
-      const jieQiDateStr = jieQiDate.toYmd();
-
-      if (jieQiDateStr <= currentDate) {
-        if (isJie) {
-          prevJie = jieQiName;
-          prevJieDate = jieQiDateStr;
-        } else if (isQi) {
-          prevQi = jieQiName;
-          prevQiDate = jieQiDateStr;
-        }
-      } else {
-        if (isJie && !nextJie) {
-          nextJie = jieQiName;
-          nextJieDate = jieQiDateStr;
-        } else if (isQi && !nextQi) {
-          nextQi = jieQiName;
-          nextQiDate = jieQiDateStr;
-        }
-      }
-    }
-
-    // 计算天数差
-    const calcDayDiff = (dateStr: string): number => {
-      if (!dateStr) return 0;
-      const parts = dateStr.split('-');
-      const targetDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-      const current = new Date(this.solar.getYear(), this.solar.getMonth() - 1, this.solar.getDay());
-      const diff = Math.abs(targetDate.getTime() - current.getTime());
-      return Math.floor(diff / (1000 * 60 * 60 * 24));
-    };
-
-    return {
-      prevJie,
+      prevJie: this.prevJie.toString(),
       prevJieDate,
-      prevJieDay: prevJieDate ? calcDayDiff(prevJieDate) : undefined,
-      nextJie,
+      prevJieDay: diffParts(solarToDate(this.prevJie.getSolar()), this.solarDate).day,
+      nextJie: this.nextJie.toString(),
       nextJieDate,
-      nextJieDay: nextJieDate ? calcDayDiff(nextJieDate) : undefined,
-      prevQi,
+      nextJieDay: diffParts(this.solarDate, solarToDate(this.nextJie.getSolar())).day,
+      prevQi: this.prevQi.toString(),
       prevQiDate,
-      prevQiDay: prevQiDate ? calcDayDiff(prevQiDate) : undefined,
-      nextQi,
+      prevQiDay: diffParts(solarToDate(this.prevQi.getSolar()), this.solarDate).day,
+      nextQi: this.nextQi.toString(),
       nextQiDate,
-      nextQiDay: nextQiDate ? calcDayDiff(nextQiDate) : undefined
+      nextQiDay: diffParts(this.solarDate, solarToDate(this.nextQi.getSolar())).day,
+      chuShengJie: `${formatBirthMarker(this.prevJie.toString(), '后', solarToDate(this.prevJie.getSolar()), this.solarDate)}、${formatBirthMarker(this.nextJie.toString(), '前', this.solarDate, solarToDate(this.nextJie.getSolar()))}`,
+      chuShengQi: `${formatBirthMarker(this.prevQi.toString(), '后', solarToDate(this.prevQi.getSolar()), this.solarDate)}、${formatBirthMarker(this.nextQi.toString(), '前', this.solarDate, solarToDate(this.nextQi.getSolar()))}`,
+
+      benGuaGuaCi: this.getGuaCi(benGuaInfo.guaName),
+      bianGuaGuaCi: this.getGuaCi(bianGuaInfo.guaName),
+      huGuaGuaCi: this.getGuaCi(huGuaInfo.guaName),
+      cuoGuaGuaCi: this.getGuaCi(cuoGuaInfo.guaName),
+      zongGuaGuaCi: this.getGuaCi(zongGuaInfo.guaName),
+
+      benGuaLiuYao: this.getLiuYaoInfo(benGuaAs),
+      bianGuaLiuYao: this.getLiuYaoInfo(bianGuaAs),
+      huGuaLiuYao: this.getLiuYaoInfo(huGuaAs),
+      cuoGuaLiuYao: this.getLiuYaoInfo(cuoGuaAs),
+      zongGuaLiuYao: this.getLiuYaoInfo(zongGuaAs),
+
+      benGuaShangGuaName: benGuaInfo.shangGuaName,
+      benGuaXiaGuaName: benGuaInfo.xiaGuaName,
+      benGuaShangGuaAs: benGuaInfo.shangGuaAs,
+      benGuaXiaGuaAs: benGuaInfo.xiaGuaAs,
+      bianGuaShangGuaName: bianGuaInfo.shangGuaName,
+      bianGuaXiaGuaName: bianGuaInfo.xiaGuaName,
+      bianGuaShangGuaAs: bianGuaInfo.shangGuaAs,
+      bianGuaXiaGuaAs: bianGuaInfo.xiaGuaAs,
+      huGuaShangGuaName: huGuaInfo.shangGuaName,
+      huGuaXiaGuaName: huGuaInfo.xiaGuaName,
+      huGuaShangGuaAs: huGuaInfo.shangGuaAs,
+      huGuaXiaGuaAs: huGuaInfo.xiaGuaAs,
+      cuoGuaShangGuaName: cuoGuaInfo.shangGuaName,
+      cuoGuaXiaGuaName: cuoGuaInfo.xiaGuaName,
+      cuoGuaShangGuaAs: cuoGuaInfo.shangGuaAs,
+      cuoGuaXiaGuaAs: cuoGuaInfo.xiaGuaAs,
+      zongGuaShangGuaName: zongGuaInfo.shangGuaName,
+      zongGuaXiaGuaName: zongGuaInfo.xiaGuaName,
+      zongGuaShangGuaAs: zongGuaInfo.shangGuaAs,
+      zongGuaXiaGuaAs: zongGuaInfo.xiaGuaAs,
+
+      shengXiao: this.getShengXiao(),
+      xingZuo: `${this.solar.getXingZuo()}座`,
+      yueXiang: this.lunar.getYueXiang(),
+      yueJiang: yueJiangData[0],
+      yueJiangShen: yueJiangData[1],
+      wuBuYuShi: this.hourGanZhi === WU_BU_YU_SHI[this.dayGan],
     };
   }
 
-  /**
-   * 计算月将和月将神
-   * 根据上一个节气和下一个节气查找对应的月将
-   */
-  private calculateYueJiang(): [string, string] {
-    const jieQiInfo = this.getJieQiInfo();
-    const prevQi = jieQiInfo.prevQi || '';
-    const nextQi = jieQiInfo.nextQi || '';
+  private initializeDate() {
+    if (this.settings.dateType === 1) {
+      const lunarParts = parseLunarDateTimeString(this.settings.date.trim());
+      if (!lunarParts) {
+        throw new Error('农历日期格式无效，请使用 L:yyyy-M-d HH:mm:ss 或 yyyy-M-d HH:mm:ss');
+      }
 
-    // 根据上一气和下一气查找月将
-    const key = prevQi + nextQi;
-    const yueJiangData = YUE_JIANG[key];
+      const month = this.settings.leapMonthType === 1 || lunarParts.isLeap
+        ? -Math.abs(lunarParts.month)
+        : Math.abs(lunarParts.month);
 
-    if (yueJiangData) {
-      return yueJiangData;
+      this.lunar = (Lunar as any).fromYmdHms(
+        lunarParts.year,
+        month,
+        lunarParts.day,
+        lunarParts.hour,
+        lunarParts.minute,
+        lunarParts.second
+      );
+      this.solar = this.lunar.getSolar();
+      this.solarDate = solarToDate(this.solar);
+      return;
     }
 
-    return ['', ''];
-  }
-
-  /**
-   * 生成卦码
-   * 支持多种起卦方式
-   */
-  private generateGuaMa(): number {
-    const paiPanType = this.settings.paiPanType || 0;
-
-    switch (paiPanType) {
-      case 0:
-        // 时间起卦（使用农历和地支数）
-        return this.generateByTime();
-      case 1:
-        // 随机起卦
-        return this.generateByRandom();
-      case 2:
-        // 数字起卦（三位数）
-        return this.generateByNumber();
-      case 3:
-        // 单数起卦（任意位数）
-        return this.generateBySingleNumber();
-      case 4:
-        // 双数起卦（两个数字）
-        return this.generateByDoubleNumber();
-      default:
-        return this.generateByTime();
+    const solarParts = parseSolarDateTimeString(this.settings.date.trim());
+    if (!solarParts) {
+      throw new Error('日期格式无效，请使用 yyyy-MM-dd HH:mm:ss');
     }
+
+    this.solarDate = solarPartsToDate(solarParts);
+    this.solar = Solar.fromDate(this.solarDate);
+    this.lunar = this.solar.getLunar();
   }
 
-  /**
-   * 时间起卦（使用农历和地支数）
-   */
-  private generateByTime(): number {
-    const eightChar = this.lunar.getEightChar();
-    const yearZhi = eightChar.getYearZhi();
-    const hourZhi = eightChar.getTimeZhi();
+  private initializeGanZhi() {
+    this.yearGanZhi = this.getYearGanZhi();
+    this.monthGanZhi = this.getMonthGanZhi();
+    this.dayGanZhi = this.getDayGanZhiByRef(this.lunar as any);
 
-    // 使用地支数（1-12）
-    const yearNumber = DI_ZHI_SHU[yearZhi] || 1;
+    this.eightChar = this.lunar.getEightChar();
+    this.eightChar.setSect?.(this.settings.dayGanZhiType + 1);
+    this.hourGanZhi = this.eightChar.getTime();
+
+    this.yearGan = this.yearGanZhi.substring(0, 1);
+    this.monthGan = this.monthGanZhi.substring(0, 1);
+    this.dayGan = this.dayGanZhi.substring(0, 1);
+    this.hourGan = this.hourGanZhi.substring(0, 1);
+    this.yearZhi = this.yearGanZhi.substring(1, 2);
+    this.monthZhi = this.monthGanZhi.substring(1, 2);
+    this.dayZhi = this.dayGanZhi.substring(1, 2);
+    this.hourZhi = this.hourGanZhi.substring(1, 2);
+  }
+
+  private initializeJieQi() {
+    const byDay = this.settings.jieQiType === 0;
+    const lunarRef = this.lunar as any;
+    this.prevJie = lunarRef.getPrevJie(byDay);
+    this.nextJie = lunarRef.getNextJie(byDay);
+    this.prevQi = lunarRef.getPrevQi(byDay);
+    this.nextQi = lunarRef.getNextQi(byDay);
+  }
+
+  private initializeNumbers() {
+    const explicitGuaMa = parseGuaMaValue(this.settings.guaMa);
+    const numbers = explicitGuaMa ?? this.generateNumbers();
+
+    this.shangGuaNumber = numbers.shangGuaNumber;
+    this.xiaGuaNumber = numbers.xiaGuaNumber;
+    this.dongYaoNumber = numbers.dongYaoNumber;
+    this.guaMa = this.shangGuaNumber * 100 + this.xiaGuaNumber * 10 + this.dongYaoNumber;
+  }
+
+  private generateNumbers(): GuaNumbers {
+    if (this.settings.paiPanType === 1) {
+      return {
+        shangGuaNumber: Math.floor(Math.random() * 8) + 1,
+        xiaGuaNumber: Math.floor(Math.random() * 8) + 1,
+        dongYaoNumber: Math.floor(Math.random() * 6) + 1,
+      };
+    }
+
+    if (this.settings.paiPanType === 2) {
+      const number = String(this.settings.shu);
+      const shang = Number(number[0] ?? '1');
+      const xia = Number(number[1] ?? '2');
+      const dong = Number(number[2] ?? '3');
+
+      return {
+        shangGuaNumber: normalizeGuaNumber(shang),
+        xiaGuaNumber: normalizeGuaNumber(xia),
+        dongYaoNumber: normalizeDongYaoNumber(dong),
+      };
+    }
+
+    if (this.settings.paiPanType === 3) {
+      const danShu = String(this.settings.danShu);
+      const half = Math.floor(danShu.length / 2);
+      const number1 = danShu.substring(0, half);
+      const number2 = danShu.substring(half);
+      const number1Count = number1 ? sumDigits(Number(number1)) : 0;
+      const number2Count = number2 ? sumDigits(Number(number2)) : 0;
+
+      return {
+        shangGuaNumber: normalizeGuaNumber(number1Count),
+        xiaGuaNumber: normalizeGuaNumber(number2Count),
+        dongYaoNumber: normalizeDongYaoNumber(number1Count + number2Count),
+      };
+    }
+
+    if (this.settings.paiPanType === 4) {
+      let shuangShuOne = this.settings.shuangShuOne;
+      let shuangShuTwo = this.settings.shuangShuTwo;
+
+      if (this.settings.shangXiaGuaType === 0) {
+        shuangShuOne = sumDigits(shuangShuOne);
+        shuangShuTwo = sumDigits(shuangShuTwo);
+      }
+
+      let dongYaoBase = shuangShuOne + shuangShuTwo;
+      if (this.settings.dongYaoType === 1) {
+        dongYaoBase += DI_ZHI_SHU[this.hourZhi] ?? 1;
+      }
+
+      return {
+        shangGuaNumber: normalizeGuaNumber(shuangShuOne),
+        xiaGuaNumber: normalizeGuaNumber(shuangShuTwo),
+        dongYaoNumber: normalizeDongYaoNumber(dongYaoBase),
+      };
+    }
+
+    const yearNumber = DI_ZHI_SHU[this.yearZhi] ?? 1;
     const monthNumber = this.lunar.getMonth();
     const dayNumber = this.lunar.getDay();
-    const hourNumber = DI_ZHI_SHU[hourZhi] || 1;
+    const hourNumber = DI_ZHI_SHU[this.hourZhi] ?? 1;
 
-    // 上卦 = (年数 + 月数 + 日数) % 8
-    let shangGua = (yearNumber + monthNumber + dayNumber) % 8;
-    if (shangGua === 0) shangGua = 8;
-
-    // 下卦 = (年数 + 月数 + 日数 + 时数) % 8
-    let xiaGua = (yearNumber + monthNumber + dayNumber + hourNumber) % 8;
-    if (xiaGua === 0) xiaGua = 8;
-
-    // 动爻 = (年数 + 月数 + 日数 + 时数) % 6
-    let dongYao = (yearNumber + monthNumber + dayNumber + hourNumber) % 6;
-    if (dongYao === 0) dongYao = 6;
-
-    return shangGua * 100 + xiaGua * 10 + dongYao;
+    return {
+      shangGuaNumber: normalizeGuaNumber(yearNumber + monthNumber + dayNumber),
+      xiaGuaNumber: normalizeGuaNumber(yearNumber + monthNumber + dayNumber + hourNumber),
+      dongYaoNumber: normalizeDongYaoNumber(yearNumber + monthNumber + dayNumber + hourNumber),
+    };
   }
 
-  /**
-   * 随机起卦
-   */
-  private generateByRandom(): number {
-    const shangGua = Math.floor(Math.random() * 8) + 1;
-    const xiaGua = Math.floor(Math.random() * 8) + 1;
-    const dongYao = Math.floor(Math.random() * 6) + 1;
-    return shangGua * 100 + xiaGua * 10 + dongYao;
+  private getYearGanZhi() {
+    const lunarRef = this.lunar as any;
+    if (this.settings.yearGanZhiType === 0) {
+      return lunarRef.getYearInGanZhi();
+    }
+    if (this.settings.yearGanZhiType === 1) {
+      return lunarRef.getYearInGanZhiByLiChun();
+    }
+    return lunarRef.getYearInGanZhiExact();
   }
 
-  /**
-   * 数字起卦（三位数）
-   */
-  private generateByNumber(): number {
-    const shu = this.settings.shu || 123;
-    const shuStr = String(shu);
+  private getMonthGanZhi() {
+    const lunarRef = this.lunar as any;
+    return this.settings.monthGanZhiType === 0
+      ? lunarRef.getMonthInGanZhi()
+      : lunarRef.getMonthInGanZhiExact();
+  }
 
-    if (shuStr.length < 3) {
-      return this.generateByTime();
+  private getDayGanZhiByRef(lunarRef: any) {
+    return this.settings.dayGanZhiType === 0
+      ? lunarRef.getDayInGanZhiExact()
+      : lunarRef.getDayInGanZhiExact2();
+  }
+
+  private getShengXiao() {
+    const lunarRef = this.lunar as any;
+    if (this.settings.yearGanZhiType === 0) {
+      return lunarRef.getYearShengXiao();
+    }
+    if (this.settings.yearGanZhiType === 1) {
+      return lunarRef.getYearShengXiaoByLiChun();
+    }
+    return lunarRef.getYearShengXiaoExact();
+  }
+
+  private getYueJiangData(): [string, string] {
+    const key = `${this.prevQi.toString()}${this.nextQi.toString()}`;
+    const data = YUE_JIANG[key];
+    if (!data) {
+      throw new Error(`月将映射缺失: ${key}`);
+    }
+    return data;
+  }
+
+  private getGuaAsByNumbers(shangGuaNumber: number, xiaGuaNumber: number) {
+    return LIU_SHI_SI_GUA_AS[`${shangGuaNumber},${xiaGuaNumber}`] ?? '';
+  }
+
+  private getBianGuaNumbers() {
+    if (this.dongYaoNumber <= 3) {
+      return {
+        shangGuaNumber: this.shangGuaNumber,
+        xiaGuaNumber: BIAN_GUA[this.xiaGuaNumber]?.[this.dongYaoNumber - 1] ?? this.xiaGuaNumber,
+      };
     }
 
-    let shangGua = parseInt(shuStr[0]) % 8;
-    if (shangGua === 0) shangGua = 8;
-
-    let xiaGua = parseInt(shuStr[1]) % 8;
-    if (xiaGua === 0) xiaGua = 8;
-
-    let dongYao = parseInt(shuStr[2]) % 6;
-    if (dongYao === 0) dongYao = 6;
-
-    return shangGua * 100 + xiaGua * 10 + dongYao;
+    return {
+      shangGuaNumber: BIAN_GUA[this.shangGuaNumber]?.[this.dongYaoNumber - 4] ?? this.shangGuaNumber,
+      xiaGuaNumber: this.xiaGuaNumber,
+    };
   }
 
-  /**
-   * 单数起卦（任意位数）
-   */
-  private generateBySingleNumber(): number {
-    const danShu = this.settings.danShu || 12345;
-    const danShuStr = String(danShu);
-    const length = danShuStr.length;
+  private getGuaInfoByAs(guaAs: string): GuaInfo {
+    const liuYaoAs = LIU_SHI_SI_GUA_LIU_YAO_AS[guaAs];
+    const info = liuYaoAs ? GUA_NAME_AND_AS[liuYaoAs.join(',') as keyof typeof GUA_NAME_AND_AS] : undefined;
 
-    if (length < 2) {
-      return this.generateByTime();
-    }
-
-    // 前半段数字之和
-    let number1Count = 0;
-    const half = Math.floor(length / 2);
-    for (let i = 0; i < half; i++) {
-      number1Count += parseInt(danShuStr[i]);
-    }
-
-    // 后半段数字之和
-    let number2Count = 0;
-    for (let i = half; i < length; i++) {
-      number2Count += parseInt(danShuStr[i]);
-    }
-
-    let shangGua = number1Count % 8;
-    if (shangGua === 0) shangGua = 8;
-
-    let xiaGua = number2Count % 8;
-    if (xiaGua === 0) xiaGua = 8;
-
-    let dongYao = (number1Count + number2Count) % 6;
-    if (dongYao === 0) dongYao = 6;
-
-    return shangGua * 100 + xiaGua * 10 + dongYao;
+    return {
+      shangGuaName: info?.[0] ?? '',
+      shangGuaAs: info?.[1] ?? '',
+      xiaGuaName: info?.[2] ?? '',
+      xiaGuaAs: info?.[3] ?? '',
+      guaName: info?.[4] ?? LIU_SHI_SI_GUA[guaAs] ?? '',
+      guaAs: info?.[5] ?? guaAs,
+    };
   }
 
-  /**
-   * 双数起卦（两个数字）
-   */
-  private generateByDoubleNumber(): number {
-    const shuangShuOne = this.settings.shuangShuOne || 12;
-    const shuangShuTwo = this.settings.shuangShuTwo || 34;
-
-    let num1 = shuangShuOne;
-    let num2 = shuangShuTwo;
-
-    // 如果需要求和
-    if (this.settings.shangXiaGuaType === 0) {
-      const str1 = String(shuangShuOne);
-      const str2 = String(shuangShuTwo);
-      num1 = 0;
-      num2 = 0;
-      for (let i = 0; i < str1.length; i++) {
-        num1 += parseInt(str1[i]);
-      }
-      for (let i = 0; i < str2.length; i++) {
-        num2 += parseInt(str2[i]);
-      }
-    }
-
-    let shangGua = num1 % 8;
-    if (shangGua === 0) shangGua = 8;
-
-    let xiaGua = num2 % 8;
-    if (xiaGua === 0) xiaGua = 8;
-
-    // 动爻计算
-    let dongYaoBase = num1 + num2;
-    if (this.settings.dongYaoType === 1) {
-      // 加时辰数
-      const eightChar = this.lunar.getEightChar();
-      const hourZhi = eightChar.getTimeZhi();
-      const hourNumber = DI_ZHI_SHU[hourZhi] || 1;
-      dongYaoBase += hourNumber;
-    }
-
-    let dongYao = dongYaoBase % 6;
-    if (dongYao === 0) dongYao = 6;
-
-    return shangGua * 100 + xiaGua * 10 + dongYao;
+  private getGuaCi(guaName: string) {
+    return LIU_SHI_SI_GUA_SHEN_CI[guaName]?.[2] ?? '';
   }
 
-  /**
-   * 获取卦的二进制编码
-   */
-  private getGuaCode(guaNum: number): string {
-    const codes = ['111', '110', '101', '100', '011', '010', '001', '000'];
-    return codes[guaNum - 1] || '000';
+  private getLiuYaoInfo(guaAs: string) {
+    return {
+      yaoMing: [...(LIU_SHI_SI_GUA_LIU_YAO_YAO_MING[guaAs] ?? ['', '', '', '', '', ''])],
+      yaoXiang: [...(LIU_SHI_SI_GUA_LIU_YAO_AS[guaAs] ?? ['', '', '', '', '', ''])],
+      yaoCi: [...(LIU_SHI_SI_GUA_LIU_YAO_YAO_CI[guaAs] ?? ['', '', '', '', '', ''])],
+    };
   }
 
-  /**
-   * 计算变卦
-   */
-  private calculateBianGua(benGua: string, dongYao: number): string {
-    const guaArray = benGua.split('');
-    // 动爻位置（从下往上数）
-    const yaoIndex = 6 - dongYao;
-    guaArray[yaoIndex] = guaArray[yaoIndex] === '0' ? '1' : '0';
-    return guaArray.join('');
-  }
-
-  /**
-   * 计算互卦
-   */
-  private calculateHuGua(benGua: string): string {
-    // 互卦由2、3、4爻组成下卦，3、4、5爻组成上卦
-    const xiaGua = benGua[4] + benGua[3] + benGua[2];
-    const shangGua = benGua[3] + benGua[2] + benGua[1];
-    return shangGua + xiaGua;
-  }
-
-  /**
-   * 计算错卦
-   */
-  private calculateCuoGua(benGua: string): string {
-    let cuoGua = '';
-    for (let i = 0; i < 6; i++) {
-      cuoGua += benGua[i] === '0' ? '1' : '0';
-    }
-    return cuoGua;
-  }
-
-  /**
-   * 计算综卦
-   */
-  private calculateZongGua(benGua: string): string {
-    return benGua.split('').reverse().join('');
-  }
-
-  /**
-   * 根据卦码获取卦名
-   */
-  private getGuaMingByCode(code: string): string {
-    const guaMing = LIU_SHI_SI_GUA[code];
-    return guaMing || '未知卦';
-  }
-
-  /**
-   * 获取体用关系
-   */
-  private getTiYongGuanXi(yongGua: string, tiGua: string): string {
-    const key = yongGua + tiGua;
-    return YONG_TI_GUAN_XI[key] || '关系未知';
+  private formatTrigram(guaName: string) {
+    return `${guaName}(${BA_GUA_SYMBOL[guaName] ?? ''})`;
   }
 }
 
-/**
- * 创建梅花易数排盘
- */
 export function createMeiHuaPaiPan(settings: MeiHuaSettings): MeiHuaResult {
-  const paiPan = new MeiHuaPaiPan(settings);
-  return paiPan.getPaiPan();
+  return new MeiHuaPaiPan(settings).getPaiPan();
 }

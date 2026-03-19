@@ -49,7 +49,7 @@ export const defaultAIConfig: AIConfig = {
   apiKey: '',
   model: '',
   temperature: 0.7,
-  maxTokens: 2000,
+  maxTokens: 1200000,
   isDefault: true,
 };
 

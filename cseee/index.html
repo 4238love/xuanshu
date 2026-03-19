@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>八字排盘 UI 模板</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23211612'/%3E%3Cpath d='M8 11h16M8 16h16M8 21h16' stroke='%23f6d9a7' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <style>
+      :root {
+        --bg: #eee5d5;
+        --paper: rgba(252, 248, 240, 0.82);
+        --paper-strong: #f7efe1;
+        --ink: #201915;
+        --muted: #71655a;
+        --line: rgba(72, 51, 31, 0.16);
+        --bronze: #b9782b;
+        --bronze-deep: #7c4c19;
+        --jade: #506458;
+        --crimson: #8e4334;
+        --lacquer: #201612;
+        --shadow: 0 24px 60px rgba(37, 25, 17, 0.12);
+        --radius-xl: 30px;
+        --radius-lg: 22px;
+        --radius-md: 16px;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 12% 18%, rgba(185, 120, 43, 0.18), transparent 22%),
+          radial-gradient(circle at 82% 12%, rgba(80, 100, 88, 0.13), transparent 24%),
+          linear-gradient(180deg, #f4ecdf 0%, var(--bg) 45%, #e6dbc9 100%);
+        font-family: "Microsoft JhengHei UI", "Microsoft YaHei", sans-serif;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.08;
+        background-image:
+          linear-gradient(rgba(62, 40, 20, 0.12) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(62, 40, 20, 0.08) 1px, transparent 1px);
+        background-size: 26px 26px;
+      }
+
+      .page {
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 28px 24px 56px;
+      }
+
+      .topbar, .panel, .section, .summary-card, .insight, .timeline-card {
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 18px 22px;
+        border-radius: var(--radius-xl);
+        background: rgba(255, 252, 246, 0.74);
+      }
+
+      .brand small, .eyebrow {
+        display: block;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--bronze-deep);
+        font-size: 12px;
+      }
+
+      .brand h1, .hero h2, .section h3 {
+        margin: 0;
+        font-family: "Palatino Linotype", "Book Antiqua", "STKaiti", "KaiTi", serif;
+        font-weight: 700;
+      }
+
+      .brand h1 { margin-top: 4px; font-size: 28px; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      .button, .chip {
+        border: 1px solid rgba(86, 58, 32, 0.14);
+        border-radius: 999px;
+        background: rgba(255, 251, 245, 0.76);
+        color: var(--ink);
+        padding: 10px 16px;
+        font-size: 13px;
+      }
+      .button.primary, .chip.active {
+        background: linear-gradient(135deg, #2b201a, #8c5925);
+        color: #fff9f0;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: 26px;
+        margin-top: 26px;
+      }
+
+      .panel {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+        padding: 22px;
+        border-radius: var(--radius-xl);
+        background: linear-gradient(180deg, rgba(255, 251, 245, 0.92), rgba(246, 238, 226, 0.88));
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .panel-grid, .summary-grid, .analysis-grid, .relation-grid, .timeline {
+        display: grid;
+        gap: 14px;
+      }
+
+      .panel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 18px; }
+      .field {
+        border: 1px solid rgba(86, 58, 32, 0.12);
+        border-radius: var(--radius-md);
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.58);
+      }
+      .field label {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      .field strong { font-size: 15px; font-weight: 600; }
+
+      .stage {
+        display: grid;
+        gap: 24px;
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 30px;
+        border-radius: calc(var(--radius-xl) + 4px);
+        color: #f8efe0;
+        background:
+          radial-gradient(circle at 10% 14%, rgba(255, 184, 77, 0.22), transparent 24%),
+          linear-gradient(140deg, #211714 0%, #3d2a1f 44%, #8d5b28 100%);
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: 18px;
+        border: 1px solid rgba(255, 237, 201, 0.16);
+        border-radius: calc(var(--radius-xl) - 2px);
+        pointer-events: none;
+      }
+
+      .hero-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 22px;
+        flex-wrap: wrap;
+      }
+
+      .hero p { margin: 10px 0 0; color: rgba(248, 239, 224, 0.8); line-height: 1.8; }
+      .pillars {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 22px;
+      }
+      .pillar {
+        padding: 16px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 236, 205, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .pillar span { display: block; font-size: 12px; color: rgba(255, 238, 214, 0.66); }
+      .pillar strong { display: block; margin-top: 10px; font-size: 34px; letter-spacing: 0.08em; }
+      .pillar em { display: block; margin-top: 8px; font-style: normal; font-size: 12px; color: rgba(255, 238, 214, 0.72); }
+
+      .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .summary-card {
+        padding: 18px;
+        border-radius: var(--radius-lg);
+        background: var(--paper);
+      }
+      .summary-card strong { display: block; margin-top: 8px; font-size: 20px; }
+      .summary-card small { color: var(--muted); }
+
+      .section {
+        padding: 22px;
+        border-radius: var(--radius-xl);
+        background: rgba(255, 251, 245, 0.76);
+      }
+
+      .wuxing-bar {
+        display: grid;
+        gap: 10px;
+      }
+      .bar {
+        position: relative;
+        height: 12px;
+        border-radius: 999px;
+        background: rgba(86, 58, 32, 0.08);
+        overflow: hidden;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--jade), var(--bronze));
+      }
+
+      .timeline { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .timeline-card, .insight {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.65);
+      }
+      .timeline-card.active { background: linear-gradient(180deg, rgba(42, 29, 22, 0.96), rgba(125, 79, 35, 0.96)); color: #fff6ea; }
+      .timeline-card span, .insight span { color: var(--muted); font-size: 12px; }
+      .timeline-card.active span { color: rgba(255, 243, 224, 0.68); }
+
+      .relation-grid { grid-template-columns: 1.15fr 0.85fr 0.85fr; }
+      .analysis-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .insight p, .section p { line-height: 1.9; margin: 10px 0 0; }
+
+      .footer-note {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+        letter-spacing: 0.18em;
+      }
+
+      @media (max-width: 1100px) {
+        .layout, .summary-grid, .relation-grid, .analysis-grid { grid-template-columns: 1fr; }
+        .timeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+
+      @media (max-width: 760px) {
+        .page { padding: 18px 14px 42px; }
+        .topbar, .panel, .section, .hero { padding: 18px; }
+        .layout { grid-template-columns: 1fr; }
+        .panel { position: static; grid-column: auto; grid-row: auto; }
+        .stage { grid-column: auto; grid-row: auto; }
+        .pillars, .timeline, .panel-grid { grid-template-columns: 1fr 1fr; }
+        .brand h1 { font-size: 23px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <small>BaZi Dossier / Prototype</small>
+          <h1>八字排盘</h1>
+        </div>
+        <div class="actions">
+          <div class="chip active">结果优先</div>
+          <div class="chip">编辑输入</div>
+          <div class="button">打印稿视图</div>
+          <div class="button primary">导出样机</div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="stage">
+          <section class="hero">
+            <div class="hero-meta">
+              <div>
+                <span class="eyebrow" style="color:rgba(255,237,201,0.72);">Current Chart</span>
+                <h2 style="font-size:42px;margin-top:8px;">示例命盘</h2>
+                <p>男命 · 蛇 · 实岁 36 / 虚岁 37 · 公历 1990-01-15 08:00:00 · 起运 1993-03-04</p>
+              </div>
+              <div style="max-width:340px;">
+                <div class="chip active" style="display:inline-flex;">身强 / 专旺格</div>
+                <p>用神偏向火木水，当前大运癸酉，流年丙午。顶部区域只保留“命局结论 + 四柱 + 当前周期”，避免开屏就被大量表格淹没。</p>
+              </div>
+            </div>
+            <div class="pillars">
+              <article class="pillar"><span>年柱</span><strong>己巳</strong><em>土火 · 大林木</em></article>
+              <article class="pillar"><span>月柱</span><strong>丁丑</strong><em>火土 · 涧下水</em></article>
+              <article class="pillar"><span>日柱</span><strong>庚辰</strong><em>金土 · 白蜡金</em></article>
+              <article class="pillar"><span>时柱</span><strong>庚辰</strong><em>金土 · 白蜡金</em></article>
+            </div>
+          </section>
+
+          <section class="summary-grid">
+            <article class="summary-card"><small>日主</small><strong>庚金</strong></article>
+            <article class="summary-card"><small>喜用神</small><strong>火 / 木 / 水</strong></article>
+            <article class="summary-card"><small>当前大运</small><strong>癸酉</strong></article>
+            <article class="summary-card"><small>当前流年</small><strong>丙午</strong></article>
+          </section>
+
+          <section class="section">
+            <span class="eyebrow">Overview</span>
+            <h3 style="margin-top:8px;font-size:30px;">五行平衡与命局判断</h3>
+            <div class="analysis-grid" style="margin-top:18px;">
+              <article class="insight">
+                <span>五行计量</span>
+                <div class="wuxing-bar">
+                  <div><div style="display:flex;justify-content:space-between;font-size:13px;"><b>木</b><b>0</b></div><div class="bar"><i style="width:8%;"></i></div></div>
+                  <div><div style="display:flex;justify-content:space-between;font-size:13px;"><b>火</b><b>2</b></div><div class="bar"><i style="width:52%;"></i></div></div>
+                  <div><div style="display:flex;justify-content:space-between;font-size:13px;"><b>土</b><b>4</b></div><div class="bar"><i style="width:100%;"></i></div></div>
+                  <div><div style="display:flex;justify-content:space-between;font-size:13px;"><b>金</b><b>2</b></div><div class="bar"><i style="width:54%;"></i></div></div>
+                  <div><div style="display:flex;justify-content:space-between;font-size:13px;"><b>水</b><b>0</b></div><div class="bar"><i style="width:10%;"></i></div></div>
+                </div>
+              </article>
+              <article class="insight">
+                <span>身强身弱</span>
+                <p><b style="font-size:28px;">身强 +35</b><br />土旺、印比聚拢，日主受扶明显。判断卡不再做成传统表格，而是单独成为一句主判断和一段可读解释。</p>
+              </article>
+              <article class="insight">
+                <span>格局摘要</span>
+                <p><b style="font-size:28px;">专旺格</b><br />适合把“格局、用神、忌神、仇神”收束在同一张判断卡里，减少来回跳读。</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="section">
+            <span class="eyebrow">Timeline</span>
+            <h3 style="margin-top:8px;font-size:30px;">大运与流年时间轴</h3>
+            <div class="timeline" style="margin-top:18px;">
+              <article class="timeline-card"><span>4 - 13 岁</span><p><b>甲戌</b><br />木土并见</p></article>
+              <article class="timeline-card"><span>14 - 23 岁</span><p><b>乙亥</b><br />木水渐起</p></article>
+              <article class="timeline-card"><span>24 - 33 岁</span><p><b>丙子</b><br />火水相激</p></article>
+              <article class="timeline-card active"><span>34 - 43 岁</span><p><b>癸酉</b><br />当前大运</p></article>
+              <article class="timeline-card"><span>2026 流年</span><p><b>丙午</b><br />火势抬头</p></article>
+            </div>
+          </section>
+
+          <section class="section">
+            <span class="eyebrow">Structure</span>
+            <h3 style="margin-top:8px;font-size:30px;">结构关系与辅助系统</h3>
+            <div class="relation-grid" style="margin-top:18px;">
+              <article class="insight">
+                <span>合冲刑害 / 干支留意</span>
+                <p>把“天干五合、地支三合、地支相冲、干支留意”汇总在一块，优先让人看见结构变化，不先堆满次级术语。</p>
+              </article>
+              <article class="insight">
+                <span>神煞</span>
+                <p>建议改为标签矩阵，而不是四列硬表。先显示汇总，再按柱位展开。</p>
+              </article>
+              <article class="insight">
+                <span>九星 / 月将 / 命卦</span>
+                <p>适合做成“辅助镜片”，视觉上应弱于四柱和判断，不再抢主舞台。</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="section">
+            <span class="eyebrow">Narrative</span>
+            <h3 style="margin-top:8px;font-size:30px;">细化解释与报告语气</h3>
+            <div class="analysis-grid" style="margin-top:18px;">
+              <article class="insight"><span>性格分析</span><p>整体版式更像“命盘档案”，长文本不再挤成一个白盒，而是拆成可扫描的专题卡片。</p></article>
+              <article class="insight"><span>事业与财运</span><p>事业、财运、感情、健康建议各占一格，便于后续插入 AI 解读或专家批注。</p></article>
+              <article class="insight"><span>输出策略</span><p>移动端保持结果优先，桌面端则是左侧输入、右侧结果。打印视图建议隐藏输入栏，只保留档案正文。</p></article>
+            </div>
+          </section>
+        </section>
+
+        <aside class="panel">
+          <span class="eyebrow">Input Rail</span>
+          <h2 style="margin:8px 0 0;font-family:'Palatino Linotype','STKaiti',serif;">命主输入</h2>
+          <p style="margin:10px 0 0;color:var(--muted);line-height:1.9;">这版把表单做成侧边命册，结果区成为主舞台。移动端提交后，结果应该先出现，输入收进下方继续微调。</p>
+          <div class="panel-grid">
+            <div class="field"><label>姓名</label><strong>张某某</strong></div>
+            <div class="field"><label>占事</label><strong>事业 / 财运</strong></div>
+            <div class="field"><label>性别</label><strong>男命</strong></div>
+            <div class="field"><label>日期类型</label><strong>公历</strong></div>
+            <div class="field" style="grid-column:1 / -1;"><label>出生时间</label><strong>1990-01-15 08:00:00</strong></div>
+            <div class="field"><label>年龄口径</label><strong>实岁</strong></div>
+            <div class="field"><label>起运流派</label><strong>精确节气</strong></div>
+            <div class="field"><label>真太阳时</label><strong>关闭</strong></div>
+            <div class="field"><label>经度 / 城市</label><strong>杭州 120.1551</strong></div>
+          </div>
+          <div class="actions" style="margin-top:18px;">
+            <div class="button primary">重新排盘</div>
+            <div class="button">填入示例</div>
+            <div class="button">恢复默认</div>
+          </div>
+        </aside>
+      </main>
+
+      <div class="footer-note">STATIC HTML MOCKUP · 用于确认视觉方向，不含真实排盘逻辑</div>
+    </div>
+  </body>
+</html>

@@ -359,7 +359,7 @@ export function buildRequestBody(config: AIConfig, messages: Array<{ role: strin
     model: config.model,
     messages,
     temperature: config.temperature ?? 0.7,
-    max_tokens: config.maxTokens ?? 2000,
+    max_tokens: config.maxTokens ?? 1200000,
     stream,
   };
 
@@ -375,7 +375,7 @@ export function buildRequestBody(config: AIConfig, messages: Array<{ role: strin
       return {
         model: config.model,
         messages: messages.map(m => ({ role: m.role, content: m.content })),
-        max_tokens: config.maxTokens ?? 2000,
+        max_tokens: config.maxTokens ?? 1200000,
         stream,
       };
 
@@ -385,7 +385,7 @@ export function buildRequestBody(config: AIConfig, messages: Array<{ role: strin
         model: config.model,
         messages,
         temperature: config.temperature ?? 0.7,
-        max_output_tokens: config.maxTokens ?? 2000,
+        max_output_tokens: config.maxTokens ?? 1200000,
         stream,
       };
 
@@ -394,7 +394,7 @@ export function buildRequestBody(config: AIConfig, messages: Array<{ role: strin
         model: config.model,
         messages,
         temperature: config.temperature ?? 0.7,
-        max_tokens: config.maxTokens ?? 2000,
+        max_tokens: config.maxTokens ?? 1200000,
         stream,
       };
 
@@ -448,6 +448,36 @@ export function extractContentFromResponse(config: AIConfig, data: unknown): str
   }
 
   return '';
+}
+
+export function getAIResponseValidationError(content: string): string | null {
+  const normalized = content.trim();
+
+  if (!normalized) {
+    return 'AI 未返回有效内容，请检查当前接口和模型配置。';
+  }
+
+  const checks: Array<{ pattern: RegExp; message: string }> = [
+    {
+      pattern: /support assistant/i,
+      message: '当前接口返回的是客服/支持型助手，不是命理分析模型，请切换接口或模型。',
+    },
+    {
+      pattern: /Cursor|Kiro|Anthropic, the AI code editor|software development workflows/i,
+      message: '当前接口返回的是编程或客服领域助手，未进入命理分析模式，请检查模型来源。',
+    },
+    {
+      pattern: /garbled characters|text encoding issue|plain English/i,
+      message: '当前接口没有正确处理中文内容，疑似编码或网关配置异常。',
+    },
+    {
+      pattern: /outside the scope of what I can assist with/i,
+      message: '当前接口对命理问题进行了范围拒答，说明接入的不是预期模型。',
+    },
+  ];
+
+  const hit = checks.find((item) => item.pattern.test(normalized));
+  return hit?.message ?? null;
 }
 
 /**
@@ -513,7 +543,7 @@ export function buildAIProxyRequestBody({
     mode,
     messages,
     temperature: temperature ?? config.temperature ?? 0.7,
-    maxTokens: maxTokens ?? config.maxTokens ?? 2000,
+    maxTokens: maxTokens ?? config.maxTokens ?? 1200000,
     stream,
   };
 
@@ -585,16 +615,27 @@ export async function testAPIConnection(
         buildAIProxyRequestBody({
           mode,
           config,
-          messages: [{ role: 'user', content: 'Hi' }],
+          messages: [
+            { role: 'system', content: '你是命理分析助手。请只输出“命理接口可用”这六个字。' },
+            { role: 'user', content: '请只输出：命理接口可用' },
+          ],
           temperature: config.temperature ?? 0.7,
-          maxTokens: config.maxTokens ?? 2000,
+          maxTokens: config.maxTokens ?? 1200000,
           stream: false,
         })
       ),
     });
 
     if (response.ok) {
-      return { success: true, message: '连接成功！' };
+      const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      const content = extractContentFromResponse(config, data);
+      const validationError = getAIResponseValidationError(content);
+
+      if (validationError) {
+        return { success: false, message: validationError };
+      }
+
+      return { success: true, message: content.includes('命理接口可用') ? '连接成功！' : '连接成功，模型已返回有效内容。' };
     } else {
       const error = (await response.json().catch(() => ({}))) as Record<string, unknown>;
       const errorMessage =

@@ -73,6 +73,11 @@ import {
   WU_BU_YU_SHI
 } from '../constants';
 import {
+  KONG_WANG,
+  TIAN_GAN_WU_XING,
+  YUE_JIANG as YUE_JIANG_BY_QI,
+} from '../liuyao/liuyaoMaps';
+import {
   getWuXing,
   getNaYin,
   getWeekDay,
@@ -115,7 +120,6 @@ import {
   getChongShengXiao,
   getPengZuBaiJi,
   getMingGua,
-  getYueJiang,
   getRiZhuLunMing,
   calculateZhengCai,
   calculatePianCai,
@@ -123,21 +127,87 @@ import {
   calculatePianTaoHua,
   getJiuXingLuck
 } from '../utils/common';
-import { calculateTrueSolarTime, calculateTrueSolarTimeByCity } from '../utils/trueSolarTime';
+import { REN_YUAN_TABLES } from './baziMaps';
+import { calculateTrueSolarTime, getLongitudeByCity } from '../utils/trueSolarTime';
+import {
+  normalizeDateValue,
+  parseLunarDateTimeString,
+  parseSolarDateTimeString,
+  solarPartsToDate,
+} from '../utils/dateTime';
+
+type JieQiRef = {
+  toString(): string;
+  getName?: () => string;
+  getSolar(): {
+    getYear(): number;
+    getMonth(): number;
+    getDay(): number;
+    getHour(): number;
+    getMinute(): number;
+    getSecond(): number;
+    toYmdHms(): string;
+  };
+};
+
+function solarToDate(solar: {
+  getYear(): number;
+  getMonth(): number;
+  getDay(): number;
+  getHour(): number;
+  getMinute(): number;
+  getSecond(): number;
+}) {
+  return new Date(
+    solar.getYear(),
+    solar.getMonth() - 1,
+    solar.getDay(),
+    solar.getHour(),
+    solar.getMinute(),
+    solar.getSecond()
+  );
+}
+
+function getJieQiName(ref?: JieQiRef) {
+  return ref?.getName?.() ?? ref?.toString?.() ?? '';
+}
+
+function getJieQiTime(ref?: JieQiRef) {
+  return ref?.getSolar().toYmdHms();
+}
 
 /**
  * 八字排盘类
  */
 export class BaZiPaiPan {
   private settings: BaZiSettings;
-  private solar: Solar;
-  private lunar: Lunar;
-  private eightChar: EightChar;
+  private solar!: Solar;
+  private lunar!: Lunar;
+  private solarDate!: Date;
+  private eightChar!: EightChar;
+
+  private yearGanZhi = '';
+  private monthGanZhi = '';
+  private dayGanZhi = '';
+  private hourGanZhi = '';
+  private yearGan = '';
+  private monthGan = '';
+  private dayGan = '';
+  private hourGan = '';
+  private yearZhi = '';
+  private monthZhi = '';
+  private dayZhi = '';
+  private hourZhi = '';
+
+  private prevJie!: JieQiRef;
+  private nextJie!: JieQiRef;
+  private prevQi!: JieQiRef;
+  private nextQi!: JieQiRef;
 
   constructor(settings: BaZiSettings) {
     this.settings = {
       leapMonthType: 0,
-      xuShiSuiType: 0,
+      xuShiSuiType: 1,
       jieQiType: 1,
       qiYunLiuPaiType: 1,
       renYuanType: 0,
@@ -157,107 +227,157 @@ export class BaZiPaiPan {
       ...settings
     };
 
-    // 解析日期
-    let date: Date;
+    const dateType = this.settings.dateType ?? 0;
+    const rawDate = this.settings.date || '2024-01-01 00:00:00';
+    const normalizedDate = normalizeDateValue(rawDate, dateType);
+    this.settings.date = normalizedDate;
+    this.initializeDate();
+    this.initializeGanZhi();
+    this.initializeJieQi();
+  }
 
-    // 检查是否为农历格式 L:yyyy-m-d-hh-mm-ss-R
-    const isLunarDate = this.settings.dateType === 1 || (this.settings.date && this.settings.date.startsWith('L:'));
-
-    if (isLunarDate) {
-      // 农历日期格式: L:2024-1-15-08-30:00-R
-      const lunarDateStr = this.settings.date || '';
-      const match = lunarDateStr.match(/L:(\d{1,4})-(\d{1,2})-(\d{1,2})-(\d{1,2}):(\d{1,2}):(\d{1,2})(-R)?/);
-
-      if (match) {
-        const year = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const day = parseInt(match[3]);
-        const hour = parseInt(match[4]);
-        const minute = parseInt(match[5]);
-        const isLeapMonth = !!match[7];
-
-        // 使用农历创建日期
-        try {
-          // lunar-javascript库: 使用Lunar.fromYmd创建农历日期
-          this.lunar = Lunar.fromYmd(year, month, day);
-
-          // 获取该农历日期对应的公历日期
-          const baseSolar = this.lunar.getSolar();
-
-          // 设置时间 - 如果时间不是00:00
-          if (hour > 0 || minute > 0) {
-            // 使用Solar.fromDate创建带时间的公历日期
-            const solarWithTime = Solar.fromDate(new Date(
-              baseSolar.getYear(),
-              baseSolar.getMonth() - 1,
-              baseSolar.getDay(),
-              hour,
-              minute,
-              0
-            ));
-            // 从带时间的公历日期获取农历
-            this.lunar = solarWithTime.getLunar();
-            this.solar = solarWithTime;
-          } else {
-            this.solar = baseSolar;
-          }
-
-          this.eightChar = this.lunar.getEightChar();
-          return; // 农历日期已设置完成
-        } catch (e) {
-          console.error('农历日期解析失败:', e);
-          // 如果解析失败，尝试使用公历
-          const solarDateStr = lunarDateStr.replace('L:', '');
-          date = parseDate(solarDateStr);
-          this.settings.dateType = 0; // 改为公历模式
-        }
-      } else {
-        // 格式不正确，使用默认解析
-        const solarDateStr = lunarDateStr.replace('L:', '');
-        date = parseDate(solarDateStr);
-        this.settings.dateType = 0;
+  private initializeDate() {
+    if (this.settings.dateType === 1) {
+      const lunarParts = parseLunarDateTimeString(this.settings.date);
+      if (!lunarParts) {
+        throw new Error('农历日期格式无效');
       }
-    } else {
-      // 公历
-      date = parseDate(this.settings.date || '2024-01-01 00:00:00');
-    }
 
-    // 如果启用真太阳时，调整时间
-    if (this.settings.useTrueSolarTime) {
-      if (this.settings.city) {
-        // 使用城市名称计算
-        date = calculateTrueSolarTimeByCity(date, this.settings.city);
-      } else if (this.settings.longitude !== undefined) {
-        // 使用经度计算
-        date = calculateTrueSolarTime(date, this.settings.longitude);
-      }
-    }
+      const month = this.settings.leapMonthType === 1 || lunarParts.isLeap
+        ? -Math.abs(lunarParts.month)
+        : Math.abs(lunarParts.month);
 
-    if (this.settings.dateType === 0) {
-      // 公历
-      this.solar = Solar.fromDate(date);
-      this.lunar = this.solar.getLunar();
-    } else {
-      // 农历
-      this.lunar = Lunar.fromDate(date);
+      this.lunar = (Lunar as any).fromYmdHms(
+        lunarParts.year,
+        month,
+        lunarParts.day,
+        lunarParts.hour,
+        lunarParts.minute,
+        lunarParts.second
+      );
       this.solar = this.lunar.getSolar();
+      this.solarDate = solarToDate(this.solar);
+    } else {
+      const solarParts = parseSolarDateTimeString(this.settings.date);
+      if (!solarParts) {
+        throw new Error('日期格式无效，请使用 yyyy-MM-dd HH:mm:ss');
+      }
+
+      this.solarDate = solarPartsToDate(solarParts);
+      this.solar = Solar.fromDate(this.solarDate);
+      this.lunar = this.solar.getLunar();
     }
+
+    if (this.settings.useTrueSolarTime) {
+      const trimmedCity = this.settings.city?.trim();
+      const cityLongitude = trimmedCity ? getLongitudeByCity(trimmedCity) : null;
+      const longitude = cityLongitude ?? this.settings.longitude;
+
+      if (longitude === undefined || Number.isNaN(longitude)) {
+        throw new Error('启用真太阳时后，请填写受支持的城市或直接输入经度。');
+      }
+
+      this.solarDate = calculateTrueSolarTime(this.solarDate, longitude);
+      this.solar = Solar.fromDate(this.solarDate);
+      this.lunar = this.solar.getLunar();
+    }
+  }
+
+  private initializeGanZhi() {
+    this.yearGanZhi = this.getYearGanZhi();
+    this.monthGanZhi = this.getMonthGanZhi();
+    this.dayGanZhi = this.getDayGanZhi();
 
     this.eightChar = this.lunar.getEightChar();
+    (this.eightChar as any).setSect?.((this.settings.dayGanZhiType ?? 0) + 1);
+    this.hourGanZhi = (this.eightChar as any).getTime?.() || `${this.eightChar.getTimeGan()}${this.eightChar.getTimeZhi()}`;
+
+    this.yearGan = this.yearGanZhi.substring(0, 1);
+    this.monthGan = this.monthGanZhi.substring(0, 1);
+    this.dayGan = this.dayGanZhi.substring(0, 1);
+    this.hourGan = this.hourGanZhi.substring(0, 1);
+    this.yearZhi = this.yearGanZhi.substring(1, 2);
+    this.monthZhi = this.monthGanZhi.substring(1, 2);
+    this.dayZhi = this.dayGanZhi.substring(1, 2);
+    this.hourZhi = this.hourGanZhi.substring(1, 2);
+  }
+
+  private initializeJieQi() {
+    const byDay = this.settings.jieQiType === 0;
+    const lunarRef = this.lunar as any;
+    this.prevJie = lunarRef.getPrevJie(byDay);
+    this.nextJie = lunarRef.getNextJie(byDay);
+    this.prevQi = lunarRef.getPrevQi(byDay);
+    this.nextQi = lunarRef.getNextQi(byDay);
+  }
+
+  private getYearGanZhi() {
+    const lunarRef = this.lunar as any;
+    if (this.settings.yearGanZhiType === 0) {
+      return lunarRef.getYearInGanZhi();
+    }
+    if (this.settings.yearGanZhiType === 1) {
+      return lunarRef.getYearInGanZhiByLiChun();
+    }
+    return lunarRef.getYearInGanZhiExact();
+  }
+
+  private getMonthGanZhi() {
+    const lunarRef = this.lunar as any;
+    return this.settings.monthGanZhiType === 0
+      ? lunarRef.getMonthInGanZhi()
+      : lunarRef.getMonthInGanZhiExact();
+  }
+
+  private getDayGanZhi() {
+    const lunarRef = this.lunar as any;
+    return this.settings.dayGanZhiType === 0
+      ? lunarRef.getDayInGanZhiExact()
+      : lunarRef.getDayInGanZhiExact2();
+  }
+
+  private getYueJiangData() {
+    const key = `${this.prevQi.toString()}${this.nextQi.toString()}`;
+    const data = YUE_JIANG_BY_QI[key];
+    if (!data) {
+      throw new Error(`月将映射缺失: ${key}`);
+    }
+
+    return {
+      yueJiang: data[0],
+      yueJiangShen: data[1],
+    };
+  }
+
+  private getPrevJieDay() {
+    const diff = this.solarDate.getTime() - solarToDate(this.prevJie.getSolar()).getTime();
+    return Math.floor(diff / (24 * 60 * 60 * 1000));
+  }
+
+  private getRenYuanSiLingFenYe() {
+    const table = REN_YUAN_TABLES[this.settings.renYuanType ?? 0] ?? REN_YUAN_TABLES[0];
+    const index = this.getPrevJieDay();
+    const dayIndex = index < 0 || index > 29 ? 1 : index;
+    const renYuan = table[this.monthZhi]?.[dayIndex] || '己';
+    return `${renYuan}${TIAN_GAN_WU_XING[renYuan] || ''}值令`;
   }
 
   /**
    * 获取排盘结果
    */
   public getPaiPan(): BaZiResult {
-    const yearGan = this.eightChar.getYearGan();
-    const yearZhi = this.eightChar.getYearZhi();
-    const monthGan = this.eightChar.getMonthGan();
-    const monthZhi = this.eightChar.getMonthZhi();
-    const dayGan = this.eightChar.getDayGan();
-    const dayZhi = this.eightChar.getDayZhi();
-    const hourGan = this.eightChar.getTimeGan();
-    const hourZhi = this.eightChar.getTimeZhi();
+    const yearGanZhi = this.yearGanZhi;
+    const monthGanZhi = this.monthGanZhi;
+    const dayGanZhi = this.dayGanZhi;
+    const hourGanZhi = this.hourGanZhi;
+    const yearGan = this.yearGan;
+    const yearZhi = this.yearZhi;
+    const monthGan = this.monthGan;
+    const monthZhi = this.monthZhi;
+    const dayGan = this.dayGan;
+    const dayZhi = this.dayZhi;
+    const hourGan = this.hourGan;
+    const hourZhi = this.hourZhi;
 
     // 计算五行数量
     const wuXingCount = this.calculateWuXingCount();
@@ -266,14 +386,7 @@ export class BaZiPaiPan {
     const shengXiao = SHENG_XIAO[DI_ZHI.indexOf(yearZhi)];
 
     // 将Solar对象转换为Date对象
-    const solarDate = new Date(
-      this.solar.getYear(),
-      this.solar.getMonth() - 1,
-      this.solar.getDay(),
-      this.solar.getHour(),
-      this.solar.getMinute(),
-      this.solar.getSecond()
-    );
+    const solarDate = this.solarDate;
 
     // 获取星座
     const xingZuo = getXingZuo(this.solar.getMonth(), this.solar.getDay());
@@ -294,13 +407,29 @@ export class BaZiPaiPan {
     const xuSui = getAge(solarDate);      // 虚岁
     const shiSui = getRealAge(solarDate); // 实岁
 
+    const shenQiangShenRuo = calculateShenQiangShenRuo(
+      dayGan,
+      yearGan,
+      monthGan,
+      hourGan,
+      yearZhi,
+      monthZhi,
+      dayZhi,
+      hourZhi
+    );
+
+    const geJu = this.settings.showGeJu !== false
+      ? this.getGeJu(dayGan, monthZhi, [yearGan, monthGan, dayGan, hourGan], [yearZhi, monthZhi, dayZhi, hourZhi])
+      : undefined;
+
     // 预先计算大运流年数据（用于财运和桃花运计算）
-    const daYunLiuNianData = this.getDaYunLiuNian(dayGan, monthGan + monthZhi, yearGan, age);
+    const daYunLiuNianData = this.getDaYunLiuNian(dayGan);
     const daYunList = daYunLiuNianData.daYun || [];
     const liuNianList = daYunLiuNianData.liuNian || [];
 
     // 获取当前节气
-    const currentJieQi = this.getJieQiInfo().current;
+    const jieQiInfo = this.getJieQiInfo();
+    const yueJiang = this.getYueJiangData();
 
     const result: BaZiResult = {
       // 基础信息
@@ -309,8 +438,10 @@ export class BaZiPaiPan {
       name: this.settings.name,
       occupy: this.settings.occupy,
       sex: this.settings.sex === 1 ? '男' : '女',
-      age: shiSui,        // 实岁
-      xuSui: xuSui,       // 虚岁
+      age: age,
+      ageLabel: xuShiSuiType === 0 ? '虚岁' : '实岁',
+      xuSui: xuSui,
+      shiSui: shiSui,
       shengXiao,
       xingZuo,
       xingQi,
@@ -318,10 +449,10 @@ export class BaZiPaiPan {
 
       // 八字
       baZi: [
-        yearGan + yearZhi,
-        monthGan + monthZhi,
-        dayGan + dayZhi,
-        hourGan + hourZhi
+        yearGanZhi,
+        monthGanZhi,
+        dayGanZhi,
+        hourGanZhi
       ],
       baZiWuXing: [
         getWuXing(yearGan) + getWuXing(yearZhi),
@@ -330,10 +461,10 @@ export class BaZiPaiPan {
         getWuXing(hourGan) + getWuXing(hourZhi)
       ],
       baZiNaYin: [
-        getNaYin(yearGan + yearZhi),
-        getNaYin(monthGan + monthZhi),
-        getNaYin(dayGan + dayZhi),
-        getNaYin(hourGan + hourZhi)
+        getNaYin(yearGanZhi),
+        getNaYin(monthGanZhi),
+        getNaYin(dayGanZhi),
+        getNaYin(hourGanZhi)
       ],
       baZiKongWang: this.getKongWang(),
 
@@ -346,6 +477,10 @@ export class BaZiPaiPan {
       monthZhi,
       dayZhi,
       hourZhi,
+      yearGanZhi,
+      monthGanZhi,
+      dayGanZhi,
+      hourGanZhi,
 
       // 五行统计
       muCount: wuXingCount.mu,
@@ -357,7 +492,7 @@ export class BaZiPaiPan {
       // 五行分析
       wuXingWangShuai: this.getWuXingWangShuai(wuXingCount),
       wuXingQueShi: this.getWuXingQueShi(wuXingCount),
-      xiYongShen: this.getXiYongShen(wuXingCount),
+      xiYongShen: this.getXiYongShen(dayGan, shenQiangShenRuo.result, geJu),
 
       // 神煞
       shenSha: this.settings.showShenSha !== false ? this.getShenSha() : undefined,
@@ -377,16 +512,16 @@ export class BaZiPaiPan {
       wuXingShengKe: this.getWuXingShengKe([yearGan, monthGan, dayGan, hourGan], [yearZhi, monthZhi, dayZhi, hourZhi]),
 
       // 格局判断系统
-      geJu: this.settings.showGeJu !== false ? this.getGeJu(dayGan, monthZhi, [yearGan, monthGan, dayGan, hourGan], [yearZhi, monthZhi, dayZhi, hourZhi]) : undefined,
+      geJu,
 
       // 胎元、胎息、命宫、身宫
-      taiYuan: getTaiYuan(monthGan, monthZhi),
-      taiXi: getTaiXi(dayGan, dayZhi),
-      mingGong: getMingGong(monthZhi, hourZhi),
-      shenGong: getShenGong(monthZhi, hourZhi),
+      taiYuan: (this.eightChar as any).getTaiYuan?.() || getTaiYuan(monthGan, monthZhi),
+      taiXi: (this.eightChar as any).getTaiXi?.() || getTaiXi(dayGan, dayZhi),
+      mingGong: (this.eightChar as any).getMingGong?.() || getMingGong(monthZhi, hourZhi),
+      shenGong: (this.eightChar as any).getShenGong?.() || getShenGong(monthZhi, hourZhi),
 
       // 小运、流月、流日、流时
-      xiaoYun: this.settings.showXiaoYun !== false ? calculateXiaoYun(hourGan, hourZhi, this.settings.sex, yearGan, daYunLiuNianData.qiYunSui) : undefined,
+      xiaoYun: daYunLiuNianData.xiaoYun,
       // 流月、流日、流时使用当前时间
       liuYue: this.settings.showLiuYue !== false ? this.getCurrentLiuYue() : undefined,
       liuRi: this.settings.showLiuRi === true ? this.getCurrentLiuRi() : undefined,
@@ -415,9 +550,10 @@ export class BaZiPaiPan {
 
       // 日主论命
       riZhuLunMing: getRiZhuLunMing(dayGan + dayZhi),
+      renYuanSiLingFenYe: this.getRenYuanSiLingFenYe(),
 
       // 月将
-      yueJiang: getYueJiang(currentJieQi),
+      yueJiang,
 
       // 财富运势
       caiYun: {
@@ -475,23 +611,14 @@ export class BaZiPaiPan {
     );
 
     // 计算身强身弱
-    result.shenQiangShenRuo = calculateShenQiangShenRuo(
-      dayGan,
-      yearGan,
-      monthGan,
-      hourGan,
-      yearZhi,
-      monthZhi,
-      dayZhi,
-      hourZhi
-    );
+    result.shenQiangShenRuo = shenQiangShenRuo;
 
     // 判断五不遇时
-    const hourGanZhi = hourGan + hourZhi;
-    result.wuBuYuShi = WU_BU_YU_SHI[dayGan] === hourGanZhi;
+    const currentHourGanZhi = hourGan + hourZhi;
+    result.wuBuYuShi = WU_BU_YU_SHI[dayGan] === currentHourGanZhi;
 
     // 获取节气信息
-    result.jieQiInfo = this.getJieQiInfo();
+    result.jieQiInfo = jieQiInfo;
 
     return result;
   }
@@ -503,17 +630,17 @@ export class BaZiPaiPan {
     const count = { mu: 0, huo: 0, tu: 0, jin: 0, shui: 0 };
 
     const gans = [
-      this.eightChar.getYearGan(),
-      this.eightChar.getMonthGan(),
-      this.eightChar.getDayGan(),
-      this.eightChar.getTimeGan()
+      this.yearGan,
+      this.monthGan,
+      this.dayGan,
+      this.hourGan
     ];
 
     const zhis = [
-      this.eightChar.getYearZhi(),
-      this.eightChar.getMonthZhi(),
-      this.eightChar.getDayZhi(),
-      this.eightChar.getTimeZhi()
+      this.yearZhi,
+      this.monthZhi,
+      this.dayZhi,
+      this.hourZhi
     ];
 
     // 统计天干五行
@@ -573,62 +700,56 @@ export class BaZiPaiPan {
   /**
    * 获取喜用神（简化版）
    */
-  private getXiYongShen(count: { mu: number; huo: number; tu: number; jin: number; shui: number }): string {
-    // 简化算法：缺什么补什么
-    const que = this.getWuXingQueShi(count);
-    if (que.length > 0) {
-      return que.join('、');
+  private getXiYongShen(
+    dayGan: string,
+    strength: '身强' | '身弱' | '中和',
+    geJu?: {
+      yongShen: string;
+      xiShen: string;
+      jiShen: string;
+      chouShen: string;
+    }
+  ): string {
+    if (geJu) {
+      return `用神 ${geJu.yongShen}；喜神 ${geJu.xiShen}`;
     }
 
-    // 如果不缺，找最弱的
-    const min = Math.min(count.mu, count.huo, count.tu, count.jin, count.shui);
-    const xiYong: string[] = [];
+    const element = getWuXing(dayGan);
+    const cycle = {
+      木: { resource: '水', output: '火', wealth: '土', official: '金' },
+      火: { resource: '木', output: '土', wealth: '金', official: '水' },
+      土: { resource: '火', output: '金', wealth: '水', official: '木' },
+      金: { resource: '土', output: '水', wealth: '木', official: '火' },
+      水: { resource: '金', output: '木', wealth: '火', official: '土' },
+    } as const;
 
-    if (count.mu === min) xiYong.push('木');
-    if (count.huo === min) xiYong.push('火');
-    if (count.tu === min) xiYong.push('土');
-    if (count.jin === min) xiYong.push('金');
-    if (count.shui === min) xiYong.push('水');
+    const relation = cycle[element as keyof typeof cycle];
+    if (!relation) {
+      return '';
+    }
 
-    return xiYong.join('、');
+    if (strength === '身弱') {
+      return `用神 ${relation.resource}、${element}；喜神 ${element}、${relation.official}`;
+    }
+    if (strength === '身强') {
+      return `用神 ${relation.output}、${relation.wealth}；喜神 ${relation.official}`;
+    }
+    return `用神 ${relation.wealth}、${relation.official}；喜神 ${relation.output}`;
   }
 
   /**
    * 获取空亡
    */
   private getKongWang(): string[] {
-    // 空亡计算：根据日柱找到所在的旬，该旬缺少的两个地支就是空亡
-    const dayGan = this.eightChar.getDayGan();
-    const dayZhi = this.eightChar.getDayZhi();
-
-    // 获取日柱在六十甲子中的索引
-    const ganIndex = TIAN_GAN.indexOf(dayGan);
-    const zhiIndex = DI_ZHI.indexOf(dayZhi);
-
-    if (ganIndex === -1 || zhiIndex === -1) return [];
-
-    // 计算六十甲子索引
-    let ganZhiIndex = -1;
-    for (let i = 0; i < 60; i++) {
-      if (i % 10 === ganIndex && i % 12 === zhiIndex) {
-        ganZhiIndex = i;
-        break;
-      }
-    }
-
-    if (ganZhiIndex === -1) return [];
-
-    // 找到所在的旬（每10个为一旬）
-    const xunStart = Math.floor(ganZhiIndex / 10) * 10;
-
-    // 该旬最后一个地支的索引
-    const lastZhiIndex = (xunStart + 9) % 12;
-
-    // 空亡是该旬之后的两个地支
-    const kongWang1 = DI_ZHI[(lastZhiIndex + 1) % 12];
-    const kongWang2 = DI_ZHI[(lastZhiIndex + 2) % 12];
-
-    return [kongWang1, kongWang2];
+    return [
+      this.yearGanZhi,
+      this.monthGanZhi,
+      this.dayGanZhi,
+      this.hourGanZhi,
+    ].map((ganZhi) => {
+      const kongWang = KONG_WANG[ganZhi];
+      return kongWang ? kongWang.join('、') : '';
+    });
   }
 
   /**
@@ -720,14 +841,14 @@ export class BaZiPaiPan {
    * 获取神煞（完善版）
    */
   private getShenSha(): string[][] {
-    const yearGan = this.eightChar.getYearGan();
-    const yearZhi = this.eightChar.getYearZhi();
-    const monthGan = this.eightChar.getMonthGan();
-    const monthZhi = this.eightChar.getMonthZhi();
-    const dayGan = this.eightChar.getDayGan();
-    const dayZhi = this.eightChar.getDayZhi();
-    const hourGan = this.eightChar.getTimeGan();
-    const hourZhi = this.eightChar.getTimeZhi();
+    const yearGan = this.yearGan;
+    const yearZhi = this.yearZhi;
+    const monthGan = this.monthGan;
+    const monthZhi = this.monthZhi;
+    const dayGan = this.dayGan;
+    const dayZhi = this.dayZhi;
+    const hourGan = this.hourGan;
+    const hourZhi = this.hourZhi;
 
     const allZhi = [yearZhi, monthZhi, dayZhi, hourZhi];
     const allGan = [yearGan, monthGan, dayGan, hourGan];
@@ -1343,84 +1464,97 @@ export class BaZiPaiPan {
     return this.filterShenSha([shenSha])[0];
   }
 
-  private getDaYunLiuNian(dayGan: string, monthGanZhi: string, yearGan: string, currentAge: number): {
+  private getDaYunLiuNian(dayGan: string): {
     qiYunSui: number;
-    daYun: { ganZhi: string; startAge: number; endAge: number; shiShen: string }[];
-    liuNian: { year: number; ganZhi: string; age: number; shiShen: string }[];
-    currentDaYun?: { ganZhi: string; startAge: number; endAge: number; shiShen: string };
-    currentLiuNian?: { year: number; ganZhi: string; age: number; shiShen: string };
+    qiYunDate?: string;
+    daYun: { ganZhi: string; startAge: number; endAge: number; shiShen: string; shenSha?: string[] }[];
+    liuNian: { year: number; ganZhi: string; age: number; shiShen: string; shenSha?: string[] }[];
+    xiaoYun?: { ganZhi: string; age: number }[];
+    currentDaYun?: { ganZhi: string; startAge: number; endAge: number; shiShen: string; shenSha?: string[] };
+    currentLiuNian?: { year: number; ganZhi: string; age: number; shiShen: string; shenSha?: string[] };
   } {
-    // 计算起运岁数（简化版，使用固定值）
-    // 实际应该根据节气精确计算
-    const yangGan = ['甲', '丙', '戊', '庚', '壬'];
-    const isYangYear = yangGan.includes(yearGan);
-    const isShunXing = (this.settings.sex === 1 && isYangYear) || (this.settings.sex === 0 && !isYangYear);
-
-    // 简化计算：使用固定起运岁数
-    const qiYunSui = this.settings.sex === 1 ? 3 : 4;
-
-    // 计算大运
+    const sect = (this.settings.qiYunLiuPaiType ?? 1) + 1;
+    const yun = (this.eightChar as any).getYun(this.settings.sex, sect);
     const daYunLunShu = this.settings.daYunLunShu || 10;
-    const daYunList = calculateDaYun(monthGanZhi, qiYunSui, daYunLunShu, isShunXing);
-
-    // 为大运添加十神和神煞
-    const daYunWithShiShen = daYunList.map(dy => {
-      const result: any = {
-        ...dy,
-        shiShen: getShiShen(dayGan, dy.ganZhi[0])
-      };
-
-      // 如果配置显示大运神煞，则计算
-      if (this.settings.showDaYunShenSha !== false) {
-        const dayZhi = this.eightChar.getDayZhi();
-        const monthZhi = this.eightChar.getMonthZhi();
-        const yearZhi = this.eightChar.getYearZhi();
-        result.shenSha = this.calculateGanZhiShenSha(dy.ganZhi, dayGan, dayZhi, monthZhi, yearZhi);
-      }
-
-      return result;
-    });
-
-    // 计算流年
-    const birthYear = this.solar.getYear();
+    const allDaYunRefs = (yun.getDaYun(daYunLunShu + 1) as any[]) || [];
+    const displayDaYunRefs = allDaYunRefs.filter((item: any) => item.getIndex() > 0);
+    const childDaYunRef = allDaYunRefs.find((item: any) => item.getIndex() === 0);
     const now = this.getChinaNow();
     const currentYear = now.getFullYear();
-    const liuNianList = calculateLiuNian(birthYear, currentYear, 10);
+    const startSolar = yun.getStartSolar();
+    const qiYunDate = formatDate(new Date(
+      startSolar.getYear(),
+      startSolar.getMonth() - 1,
+      startSolar.getDay(),
+      startSolar.getHour(),
+      startSolar.getMinute(),
+      startSolar.getSecond()
+    ));
+    const qiYunSui = displayDaYunRefs[0]?.getStartAge() || 0;
 
-    // 为流年添加十神和神煞
-    const liuNianWithShiShen = liuNianList.map(ln => {
-      const result: any = {
-        ...ln,
-        shiShen: getShiShen(dayGan, ln.ganZhi[0])
+    const dayZhi = this.dayZhi;
+    const monthZhi = this.monthZhi;
+    const yearZhi = this.yearZhi;
+
+    const decorateGanZhi = (ganZhi: string, includeShenSha: boolean) => {
+      const result: { shiShen: string; shenSha?: string[] } = {
+        shiShen: getShiShen(dayGan, ganZhi[0])
       };
 
-      // 如果配置显示流年神煞，则计算
-      if (this.settings.showLiuNianShenSha !== false) {
-        const dayZhi = this.eightChar.getDayZhi();
-        const monthZhi = this.eightChar.getMonthZhi();
-        const yearZhi = this.eightChar.getYearZhi();
-        result.shenSha = this.calculateGanZhiShenSha(ln.ganZhi, dayGan, dayZhi, monthZhi, yearZhi);
+      if (includeShenSha) {
+        result.shenSha = this.calculateGanZhiShenSha(ganZhi, dayGan, dayZhi, monthZhi, yearZhi);
       }
 
       return result;
-    });
+    };
 
-    // 获取当前大运
-    const currentDaYun = getCurrentDaYun(daYunWithShiShen, currentAge);
+    const daYun = displayDaYunRefs.map((item: any) => ({
+      ganZhi: item.getGanZhi(),
+      startAge: item.getStartAge(),
+      endAge: item.getEndAge(),
+      ...decorateGanZhi(item.getGanZhi(), this.settings.showDaYunShenSha !== false)
+    }));
 
-    // 获取当前流年
-    const currentSolar = Solar.fromDate(now);
-    const currentLunar = currentSolar.getLunar();
-    const currentLiuNianGanZhi = currentLunar.getYearInGanZhi();
-    const currentLiuNian = liuNianWithShiShen.find(ln => ln.ganZhi === currentLiuNianGanZhi)
-      || getCurrentLiuNian(liuNianWithShiShen, currentYear);
+    const activeDaYunRef = allDaYunRefs.find(
+      (item: any) => currentYear >= item.getStartYear() && currentYear <= item.getEndYear()
+    ) || displayDaYunRefs[0];
+
+    const liuNianRefs = activeDaYunRef ? (activeDaYunRef.getLiuNian() as any[]) : [];
+    const liuNian = liuNianRefs.map((item: any) => ({
+      year: item.getYear(),
+      ganZhi: item.getGanZhi(),
+      age: item.getAge(),
+      ...decorateGanZhi(item.getGanZhi(), this.settings.showLiuNianShenSha !== false)
+    }));
+
+    const xiaoYun = this.settings.showXiaoYun !== false && childDaYunRef && qiYunSui > 1
+      ? (childDaYunRef.getXiaoYun(qiYunSui - 1) as any[]).map((item: any) => ({
+          ganZhi: item.getGanZhi(),
+          age: item.getAge()
+        }))
+      : undefined;
+
+    const currentDaYun = activeDaYunRef && activeDaYunRef.getIndex() > 0
+      ? {
+          ganZhi: activeDaYunRef.getGanZhi(),
+          startAge: activeDaYunRef.getStartAge(),
+          endAge: activeDaYunRef.getEndAge(),
+          ...decorateGanZhi(activeDaYunRef.getGanZhi(), this.settings.showDaYunShenSha !== false)
+        }
+      : undefined;
+
+    const currentLiuNian = liuNian.find(item => item.year === currentYear)
+      || getCurrentLiuNian(liuNian, currentYear)
+      || undefined;
 
     return {
       qiYunSui,
-      daYun: daYunWithShiShen,
-      liuNian: liuNianWithShiShen,
-      currentDaYun: currentDaYun || undefined,
-      currentLiuNian: currentLiuNian || undefined
+      qiYunDate,
+      daYun,
+      liuNian,
+      xiaoYun,
+      currentDaYun,
+      currentLiuNian
     };
   }
 
@@ -1569,6 +1703,23 @@ export class BaZiPaiPan {
     daysToNext?: number;
   } {
     try {
+      const byDay = this.settings.jieQiType === 0;
+      const lunarRef = this.lunar as any;
+      const currentRef = lunarRef.getPrevJieQi?.(byDay) as JieQiRef | undefined;
+      const nextRef = lunarRef.getNextJieQi?.(byDay) as JieQiRef | undefined;
+      const nextDate = nextRef ? solarToDate(nextRef.getSolar()) : undefined;
+
+      return {
+        current: getJieQiName(currentRef) || getJieQiName(this.prevJie) || '未知',
+        prev: getJieQiName(this.prevJie) || '未知',
+        next: getJieQiName(nextRef) || getJieQiName(this.nextJie) || '未知',
+        currentTime: getJieQiTime(currentRef) || getJieQiTime(this.prevJie),
+        nextTime: getJieQiTime(nextRef) || getJieQiTime(this.nextJie),
+        daysToNext: nextDate
+          ? Math.floor((nextDate.getTime() - this.solarDate.getTime()) / (24 * 60 * 60 * 1000))
+          : undefined,
+      };
+
       const jieQiTable = (this.lunar as any).getJieQiTable();
 
       // 获取所有节气名称（按时间顺序）
@@ -1681,10 +1832,31 @@ export class BaZiPaiPan {
    * 获取中国时区的当前日期
    */
   private getChinaNow(): Date {
-    // 获取中国时区的当前时间
-    const now = new Date();
-    const chinaTimeStr = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-    return new Date(chinaTimeStr);
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    });
+    const parts = formatter.formatToParts(new Date()).reduce<Record<string, string>>((result, part) => {
+      if (part.type !== 'literal') {
+        result[part.type] = part.value;
+      }
+      return result;
+    }, {});
+
+    return new Date(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second)
+    );
   }
 
   /**

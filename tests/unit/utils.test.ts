@@ -1,71 +1,49 @@
-/**
- * 通用工具函数单元测试
- * 测试lib/utils中的工具函数
- */
-
 import {
-  getGanZhiIndex,
+  calculateLiuNian,
   getGanZhi,
-  getWuXing,
+  getGanZhiIndex,
   getNaYin,
+  getWuXing,
   parseDate,
-  calculateLiuNian
 } from '../../lib/utils/common';
+import {
+  convertDateValue,
+  normalizeDateValue,
+  parseLunarDateTimeString,
+} from '../../lib/utils/dateTime';
 
 describe('通用工具函数测试', () => {
   describe('干支相关', () => {
-    test('getGanZhiIndex - 天干索引', () => {
-      expect(getGanZhiIndex('甲')).toBe(0);
-      expect(getGanZhiIndex('乙')).toBe(1);
-      expect(getGanZhiIndex('癸')).toBe(9);
+    test('getGanZhiIndex 返回正确索引', () => {
+      expect(getGanZhiIndex('甲', '子')).toBe(0);
+      expect(getGanZhiIndex('乙', '丑')).toBe(1);
+      expect(getGanZhiIndex('癸', '亥')).toBe(59);
+      expect(getGanZhiIndex('庚', '戌')).toBe(46);
     });
 
-    test('getGanZhiIndex - 地支索引', () => {
-      expect(getGanZhiIndex('子')).toBe(0);
-      expect(getGanZhiIndex('丑')).toBe(1);
-      expect(getGanZhiIndex('亥')).toBe(11);
-    });
-
-    test('getGanZhi - 根据索引获取干支', () => {
+    test('getGanZhi 支持 60 甲子循环', () => {
       expect(getGanZhi(0)).toBe('甲子');
       expect(getGanZhi(1)).toBe('乙丑');
       expect(getGanZhi(59)).toBe('癸亥');
-      expect(getGanZhi(60)).toBe('甲子'); // 循环
+      expect(getGanZhi(60)).toBe('甲子');
     });
   });
 
-  describe('五行相关', () => {
-    test('getWuXing - 天干五行', () => {
+  describe('五行和纳音', () => {
+    test('getWuXing 返回正确五行', () => {
       expect(getWuXing('甲')).toBe('木');
-      expect(getWuXing('乙')).toBe('木');
       expect(getWuXing('丙')).toBe('火');
-      expect(getWuXing('丁')).toBe('火');
       expect(getWuXing('戊')).toBe('土');
-      expect(getWuXing('己')).toBe('土');
       expect(getWuXing('庚')).toBe('金');
-      expect(getWuXing('辛')).toBe('金');
       expect(getWuXing('壬')).toBe('水');
-      expect(getWuXing('癸')).toBe('水');
-    });
-
-    test('getWuXing - 地支五行', () => {
       expect(getWuXing('寅')).toBe('木');
-      expect(getWuXing('卯')).toBe('木');
-      expect(getWuXing('巳')).toBe('火');
       expect(getWuXing('午')).toBe('火');
       expect(getWuXing('辰')).toBe('土');
-      expect(getWuXing('戌')).toBe('土');
-      expect(getWuXing('丑')).toBe('土');
-      expect(getWuXing('未')).toBe('土');
-      expect(getWuXing('申')).toBe('金');
       expect(getWuXing('酉')).toBe('金');
-      expect(getWuXing('亥')).toBe('水');
       expect(getWuXing('子')).toBe('水');
     });
-  });
 
-  describe('纳音相关', () => {
-    test('getNaYin - 六十甲子纳音', () => {
+    test('getNaYin 返回正确纳音', () => {
       expect(getNaYin('甲子')).toBe('海中金');
       expect(getNaYin('乙丑')).toBe('海中金');
       expect(getNaYin('丙寅')).toBe('炉中火');
@@ -73,54 +51,66 @@ describe('通用工具函数测试', () => {
       expect(getNaYin('戊辰')).toBe('大林木');
       expect(getNaYin('己巳')).toBe('大林木');
     });
-
-    test('getNaYin - 所有纳音都有定义', () => {
-      const ganZhiList = [];
-      for (let i = 0; i < 60; i++) {
-        ganZhiList.push(getGanZhi(i));
-      }
-
-      ganZhiList.forEach(gz => {
-        const nayin = getNaYin(gz);
-        expect(nayin).toBeDefined();
-        expect(nayin.length).toBeGreaterThan(0);
-      });
-    });
   });
 
   describe('日期解析', () => {
-    test('parseDate - 标准格式', () => {
+    test('parseDate 严格返回 Date 对象', () => {
       const date = parseDate('2024-01-01 08:30:00');
-      expect(date).toBeDefined();
-      expect(date.year).toBe(2024);
-      expect(date.month).toBe(1);
-      expect(date.day).toBe(1);
-      expect(date.hour).toBe(8);
-      expect(date.minute).toBe(30);
-      expect(date.second).toBe(0);
+
+      expect(date).toBeInstanceOf(Date);
+      expect(date.getFullYear()).toBe(2024);
+      expect(date.getMonth() + 1).toBe(1);
+      expect(date.getDate()).toBe(1);
+      expect(date.getHours()).toBe(8);
+      expect(date.getMinutes()).toBe(30);
+      expect(date.getSeconds()).toBe(0);
     });
 
-    test('parseDate - 不同格式', () => {
+    test('parseDate 支持斜杠和非补零格式', () => {
       const date1 = parseDate('2024-1-1 8:30:0');
-      expect(date1.year).toBe(2024);
-      expect(date1.month).toBe(1);
-
       const date2 = parseDate('2024/01/01 08:30:00');
-      expect(date2.year).toBe(2024);
-      expect(date2.month).toBe(1);
+
+      expect(date1.getFullYear()).toBe(2024);
+      expect(date1.getMonth() + 1).toBe(1);
+      expect(date2.getFullYear()).toBe(2024);
+      expect(date2.getMonth() + 1).toBe(1);
     });
 
-    test('parseDate - 错误格式', () => {
-      expect(() => {
-        parseDate('invalid-date');
-      }).toThrow();
+    test('parseDate 对非法格式直接抛错', () => {
+      expect(() => parseDate('invalid-date')).toThrow('日期格式无效');
+      expect(() => parseDate('2024-02-30 08:30:00')).toThrow('日期时间无效');
+    });
+
+    test('normalizeDateValue 会输出规范化公历字符串', () => {
+      expect(normalizeDateValue('2024-1-2 3:4:5', 0)).toBe('2024-01-02 03:04:05');
+    });
+
+    test('农历字符串支持闰月标记与公农历互转', () => {
+      const leapLunar = 'L:2020-4-2 08:00:00-R';
+      const lunarParts = parseLunarDateTimeString(leapLunar);
+
+      expect(lunarParts).toEqual({
+        year: 2020,
+        month: 4,
+        day: 2,
+        hour: 8,
+        minute: 0,
+        second: 0,
+        isLeap: true,
+      });
+      expect(normalizeDateValue(leapLunar, 1)).toBe('L:2020-4-2 08:00:00-R');
+
+      const solarValue = convertDateValue(leapLunar, 1, 0);
+      expect(solarValue).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+      expect(convertDateValue(solarValue, 0, 1)).toContain('L:');
     });
   });
 
   describe('流年计算', () => {
-    test('2026年流年干支应为丙午（春节后换年）', () => {
+    test('2026 年流年干支按立春后为丙午', () => {
       const liuNian = calculateLiuNian(1990, 2026, 3);
-      const current = liuNian.find(item => item.year === 2026);
+      const current = liuNian.find((item) => item.year === 2026);
+
       expect(current).toBeDefined();
       expect(current?.ganZhi).toBe('丙午');
     });

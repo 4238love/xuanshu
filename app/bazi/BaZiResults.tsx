@@ -1,6 +1,6 @@
-import { BaZiResult } from '@/types';
-import { Badge } from '@/components/ui/Badge';
+import type { ReactNode } from 'react';
 import { CopyButton, ExportButton, PrintButton } from '@/components/ui/Export';
+import type { BaZiResult, BaZiSettings } from '@/types';
 
 interface ShowConfig {
   showXiaoYun: boolean;
@@ -17,11 +17,34 @@ interface ShowConfig {
 
 interface BaZiResultsProps {
   result: BaZiResult;
-  showConfig: ShowConfig;
-  onToggle: (field: keyof import('@/types').BaZiSettings, checked: boolean) => void;
+  showConfig?: Partial<ShowConfig>;
+  onToggle?: (field: keyof BaZiSettings, checked: boolean) => void;
+  reportTargetId?: string;
 }
 
-const DISPLAY_TOGGLES: { key: keyof ShowConfig; label: string }[] = [
+const DEFAULT_SHOW_CONFIG: ShowConfig = {
+  showXiaoYun: true,
+  showLiuYue: true,
+  showLiuRi: false,
+  showLiuShi: true,
+  showJiuXing: true,
+  showGanZhiLiuYi: true,
+  showShenSha: true,
+  showGeJu: true,
+  showDaYunShenSha: true,
+  showLiuNianShenSha: true,
+};
+
+const DEFAULT_REPORT_TARGET_ID = 'bazi-report-content';
+const EMPTY = '暂无';
+const LINKS = [
+  { id: 'overview', label: '命盘概览' },
+  { id: 'strength', label: '命局判断' },
+  { id: 'fortune', label: '大运流年' },
+  { id: 'relations', label: '结构辅助' },
+  { id: 'insights', label: '细化解读' },
+];
+const TOGGLES: Array<{ key: keyof ShowConfig; label: string }> = [
   { key: 'showGeJu', label: '格局用神' },
   { key: 'showShenSha', label: '神煞' },
   { key: 'showXiaoYun', label: '小运' },
@@ -34,73 +57,78 @@ const DISPLAY_TOGGLES: { key: keyof ShowConfig; label: string }[] = [
   { key: 'showLiuNianShenSha', label: '流年神煞' },
 ];
 
-const SECTION_LINKS = [
-  { id: 'overview', label: '概览' },
-  { id: 'strength', label: '判断' },
-  { id: 'fortune', label: '运势' },
-  { id: 'relations', label: '结构' },
-  { id: 'insights', label: '细化解释' },
-];
+function join(items?: Array<string | number | undefined | null>, separator = ' · ') {
+  const values = (items ?? []).filter((item): item is string | number => item !== undefined && item !== null && item !== '');
+  return values.length ? values.join(separator) : EMPTY;
+}
+
+function range(start?: number, end?: number) {
+  return start === undefined || end === undefined ? EMPTY : `${start} - ${end} 岁`;
+}
+
+function unique(groups?: string[][]) {
+  return Array.from(new Set((groups ?? []).flat().filter(Boolean)));
+}
+
+function pickTimelineWindow(daYun: NonNullable<BaZiResult['daYun']>, currentGanZhi?: string) {
+  if (!daYun.length) return [];
+  const index = currentGanZhi ? daYun.findIndex((item) => item.ganZhi === currentGanZhi) : -1;
+  const start = index <= 1 ? 0 : Math.max(0, index - 1);
+  return daYun.slice(start, start + 4);
+}
 
 function Section({
   id,
+  eyebrow,
   title,
-  summary,
-  defaultOpen = false,
+  description,
   children,
 }: {
   id: string;
+  eyebrow: string;
   title: string;
-  summary: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
+  description: string;
+  children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-32">
-      <details
-        open={defaultOpen}
-        className="overflow-hidden rounded-[28px] border border-stone-200 bg-white/90 shadow-xl backdrop-blur"
-      >
-        <summary className="cursor-pointer list-none border-b border-stone-200 bg-stone-50 px-6 py-5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-stone-900">{title}</h2>
-              <p className="mt-1 text-sm text-stone-600">{summary}</p>
-            </div>
-            <span className="text-xs uppercase tracking-[0.3em] text-stone-400">展开 / 收起</span>
-          </div>
-        </summary>
-        <div className="space-y-6 p-6">{children}</div>
-      </details>
+    <section
+      id={id}
+      className="scroll-mt-28 rounded-[32px] border border-[rgba(116,74,36,0.12)] bg-[rgba(255,250,242,0.8)] p-5 shadow-[0_32px_60px_-42px_rgba(60,38,15,0.6)] backdrop-blur-xl sm:p-6"
+    >
+      <div className="mb-5 space-y-2">
+        <p className="text-[10px] uppercase tracking-[0.34em] text-[#8a6239]">{eyebrow}</p>
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
+          <h2 className="text-[1.9rem] font-semibold tracking-[0.05em] text-[#2f2118]">{title}</h2>
+          <p className="max-w-3xl text-sm leading-7 text-[#6c5a4d]">{description}</p>
+        </div>
+      </div>
+      {children}
     </section>
   );
 }
 
-function InfoTile({ label, value }: { label: string; value?: React.ReactNode }) {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-
+function Card({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-      <div className="text-xs uppercase tracking-[0.2em] text-stone-400">{label}</div>
-      <div className="mt-2 text-sm font-medium text-stone-900">{value}</div>
-    </div>
+    <article className={`rounded-[24px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,253,248,0.9)] p-4 shadow-[0_22px_40px_-34px_rgba(56,35,12,0.55)] ${className}`}>
+      <div className="text-[11px] uppercase tracking-[0.24em] text-[#8a6239]">{title}</div>
+      <div className="mt-3">{children}</div>
+    </article>
   );
 }
 
-function TagList({ items }: { items?: string[] }) {
-  if (!items || items.length === 0) {
-    return <span className="text-sm text-stone-500">无</span>;
-  }
-
+function Tags({ items, tone = 'default' }: { items?: Array<string | undefined | null>; tone?: 'default' | 'warning' | 'ink' }) {
+  const values = (items ?? []).filter(Boolean) as string[];
+  if (!values.length) return <span className="text-sm text-[#7b6b5f]">{EMPTY}</span>;
+  const toneClass =
+    tone === 'warning'
+      ? 'border-[#d7b07d] bg-[#fff5e8] text-[#7a5328]'
+      : tone === 'ink'
+        ? 'border-[#4a2d19] bg-[#4a2d19] text-white'
+        : 'border-[rgba(117,76,40,0.14)] bg-[rgba(255,252,247,0.86)] text-[#5d4732]';
   return (
     <div className="flex flex-wrap gap-2">
-      {items.map(item => (
-        <span
-          key={item}
-          className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs text-stone-700"
-        >
+      {values.map((item, index) => (
+        <span key={`${item}-${index}`} className={`rounded-full border px-3 py-1 text-xs ${toneClass}`}>
           {item}
         </span>
       ))}
@@ -108,638 +136,240 @@ function TagList({ items }: { items?: string[] }) {
   );
 }
 
-function RelationGroup({
-  title,
-  items,
-  renderItem,
-}: {
-  title: string;
-  items?: unknown[];
-  renderItem: (item: any, index: number) => React.ReactNode;
-}) {
-  if (!items || items.length === 0) {
-    return null;
-  }
-
+function Metric({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
-      <div className="grid gap-3 md:grid-cols-2">{items.map(renderItem)}</div>
+    <div className="rounded-[22px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,252,247,0.82)] p-4 shadow-[0_20px_38px_-34px_rgba(56,35,12,0.6)]">
+      <div className="text-[11px] uppercase tracking-[0.24em] text-[#8a6239]">{label}</div>
+      <div className="mt-2 text-2xl font-semibold tracking-[0.03em] text-[#2f2118]">{value}</div>
+      {note ? <div className="mt-2 text-xs leading-6 text-[#77685c]">{note}</div> : null}
     </div>
   );
 }
 
-export function BaZiResults({ result, showConfig, onToggle }: BaZiResultsProps) {
-  const pillarData = [
-    { label: '年柱', gz: result.baZi[0], wuXing: result.baZiWuXing[0], naYin: result.baZiNaYin[0], shiShen: result.shiShen?.year, cangGan: result.diZhiCangGan?.year },
-    { label: '月柱', gz: result.baZi[1], wuXing: result.baZiWuXing[1], naYin: result.baZiNaYin[1], shiShen: result.shiShen?.month, cangGan: result.diZhiCangGan?.month },
-    { label: '日柱', gz: result.baZi[2], wuXing: result.baZiWuXing[2], naYin: result.baZiNaYin[2], shiShen: result.shiShen?.day, cangGan: result.diZhiCangGan?.day },
-    { label: '时柱', gz: result.baZi[3], wuXing: result.baZiWuXing[3], naYin: result.baZiNaYin[3], shiShen: result.shiShen?.hour, cangGan: result.diZhiCangGan?.hour },
+export function BaZiResults({ result, showConfig, onToggle, reportTargetId = DEFAULT_REPORT_TARGET_ID }: BaZiResultsProps) {
+  const config = { ...DEFAULT_SHOW_CONFIG, ...showConfig };
+  const ageLabel = result.ageLabel ?? '实岁';
+  const otherAgeLabel = ageLabel === '实岁' ? '虚岁' : '实岁';
+  const otherAge = ageLabel === '实岁' ? result.xuSui : result.shiSui;
+  const pillars = [
+    { label: '年柱', key: 'year' as const, gz: result.baZi[0], wuXing: result.baZiWuXing[0], naYin: result.baZiNaYin[0], kongWang: result.baZiKongWang[0] },
+    { label: '月柱', key: 'month' as const, gz: result.baZi[1], wuXing: result.baZiWuXing[1], naYin: result.baZiNaYin[1], kongWang: result.baZiKongWang[1] },
+    { label: '日柱', key: 'day' as const, gz: result.baZi[2], wuXing: result.baZiWuXing[2], naYin: result.baZiNaYin[2], kongWang: result.baZiKongWang[2] },
+    { label: '时柱', key: 'hour' as const, gz: result.baZi[3], wuXing: result.baZiWuXing[3], naYin: result.baZiNaYin[3], kongWang: result.baZiKongWang[3] },
+  ].map((item) => ({
+    ...item,
+    shiShen: result.shiShen?.[item.key],
+    cangGan: result.diZhiCangGan?.[item.key],
+    zhiShiShen: result.shiShenZhi?.[item.key],
+  }));
+  const wuXing = [
+    { name: '木', count: result.muCount, color: '#5f775f' },
+    { name: '火', count: result.huoCount, color: '#b26039' },
+    { name: '土', count: result.tuCount, color: '#9c6c2e' },
+    { name: '金', count: result.jinCount, color: '#67707f' },
+    { name: '水', count: result.shuiCount, color: '#496e8d' },
   ];
-
-  const wuXingData = [
-    { name: '木', count: result.muCount, color: 'bg-emerald-500' },
-    { name: '火', count: result.huoCount, color: 'bg-orange-500' },
-    { name: '土', count: result.tuCount, color: 'bg-amber-500' },
-    { name: '金', count: result.jinCount, color: 'bg-slate-500' },
-    { name: '水', count: result.shuiCount, color: 'bg-sky-500' },
-  ];
-  const maxWuXing = Math.max(...wuXingData.map(item => item.count), 1);
-
-  const generateTextReport = () => [
-    `【八字排盘报告】${result.name ? ' — ' + result.name : ''}`,
+  const maxCount = Math.max(...wuXing.map((item) => item.count), 1);
+  const reportText = [
+    `【八字排盘报告】${result.name ? ` ${result.name}` : ''}`,
     `公历：${result.solar}`,
     `农历：${result.lunar}`,
     `四柱：${result.baZi.join(' ')}`,
-    `日主：${result.dayGan}  生肖：${result.shengXiao}`,
-    ``,
-    `【判断】`,
-    `身强身弱：${result.shenQiangShenRuo?.result ?? '未判定'}（${result.shenQiangShenRuo?.score ?? '-'}分）`,
-    `喜用神：${result.xiYongShen ?? '未输出'}`,
-    result.geJu ? `格局：${result.geJu.geJuName} — ${result.geJu.geJuMeaning}` : '',
-    ``,
-    `【运势】`,
-    `起运：${result.qiYunSui}岁（${result.qiYunDate}）`,
-    result.currentDaYun ? `当前大运：${result.currentDaYun.ganZhi}（${result.currentDaYun.startAge}-${result.currentDaYun.endAge}岁）` : '',
-    result.currentLiuNian ? `当前流年：${result.currentLiuNian.year} ${result.currentLiuNian.ganZhi}` : '',
+    `年龄：${ageLabel} ${result.age}${otherAge !== undefined ? ` / ${otherAgeLabel} ${otherAge}` : ''}`,
+    `日主：${result.dayGan}`,
+    `人元司令：${result.renYuanSiLingFenYe ?? EMPTY}`,
+    `喜用神：${result.xiYongShen ?? EMPTY}`,
   ].filter(Boolean).join('\n');
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] border border-amber-200 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.2),_transparent_35%),linear-gradient(135deg,#1c1917,#44403c_55%,#a16207)] p-6 text-white shadow-2xl">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="warning" size="sm">八字排盘</Badge>
-              {result.qiYunDate && <Badge variant="info" size="sm">起运 {result.qiYunDate}</Badge>}
-              {result.shenQiangShenRuo?.result && <Badge variant="default" size="sm">{result.shenQiangShenRuo.result}</Badge>}
-            </div>
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight">
-                {result.name || '未命名命盘'}
-              </h1>
-              <p className="mt-2 text-sm text-stone-200">
-                {result.sex} · {result.shengXiao} · 实岁 {result.age} / 虚岁 {result.xuSui ?? '-'} · {result.solar}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {pillarData.map(item => (
-                <div key={item.label} className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-300">{item.label}</div>
-                  <div className="mt-2 text-2xl font-semibold">{item.gz}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:w-[340px]">
-            <InfoTile label="日主" value={result.dayGan} />
-            <InfoTile label="喜用" value={result.xiYongShen} />
-            <InfoTile
-              label="当前大运"
-              value={result.currentDaYun ? `${result.currentDaYun.ganZhi} (${result.currentDaYun.startAge}-${result.currentDaYun.endAge}岁)` : '未起运'}
-            />
-            <InfoTile
-              label="当前流年"
-              value={result.currentLiuNian ? `${result.currentLiuNian.year} ${result.currentLiuNian.ganZhi}` : '未找到'}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="sticky top-[72px] z-30 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur">
-        <div className="flex flex-wrap gap-2">
-          {SECTION_LINKS.map(link => (
-            <a
-              key={link.id}
-              href={`#${link.id}`}
-              className="rounded-full border border-stone-200 px-4 py-1.5 text-sm text-stone-700 transition-colors hover:border-stone-500 hover:bg-stone-50"
-            >
-              {link.label}
-            </a>
-          ))}
-          <a
-            href="#"
-            className="ml-auto rounded-full border border-stone-200 px-4 py-1.5 text-sm text-stone-500 transition-colors hover:border-stone-400"
-          >
-            ↑ 顶部
-          </a>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-stone-200 bg-white/90 p-4 shadow-lg backdrop-blur">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-stone-400">显示内容</p>
-        <div className="flex flex-wrap gap-2">
-          {DISPLAY_TOGGLES.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onToggle(key, !showConfig[key])}
-              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                showConfig[key]
-                  ? 'border-stone-900 bg-stone-900 text-white'
-                  : 'border-stone-200 bg-white text-stone-600 hover:border-stone-400'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-stone-200 bg-white/90 p-4 shadow-lg backdrop-blur">
-        <div className="flex flex-wrap gap-3">
-          <CopyButton text={generateTextReport()}>复制文字报告</CopyButton>
-          <ExportButton data={result} filename={`八字排盘-${result.name || '未命名'}`} type="json">
-            导出原始数据（JSON）
-          </ExportButton>
-          <PrintButton>打印结果</PrintButton>
-        </div>
-      </div>
-
-      <Section
-        id="overview"
-        title="概览"
-        summary={`四柱 ${result.baZi.join(' / ')}，农历 ${result.lunar}`}
-        defaultOpen
-      >
-        <div className="overflow-x-auto rounded-3xl border border-stone-200 bg-stone-50/70">
-          <table className="w-full min-w-[400px] border-collapse text-center">
-            <thead>
-              <tr className="border-b border-stone-200">
-                <td className="w-16 py-3 text-xs text-stone-400">柱</td>
-                {pillarData.map(item => (
-                  <th key={item.label} className="py-3 text-xs font-semibold uppercase tracking-[0.25em] text-stone-500">{item.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-stone-100">
-                <td className="py-2 text-xs text-stone-400">天干</td>
-                {pillarData.map(item => (
-                  <td key={item.label} className="py-3 text-3xl font-semibold text-stone-900">{item.gz[0]}</td>
-                ))}
-              </tr>
-              <tr className="border-b border-stone-100">
-                <td className="py-2 text-xs text-stone-400">地支</td>
-                {pillarData.map(item => (
-                  <td key={item.label} className="py-3 text-3xl font-semibold text-amber-700">{item.gz[1]}</td>
-                ))}
-              </tr>
-              <tr className="border-b border-stone-100">
-                <td className="py-2 text-xs text-stone-400">纳音</td>
-                {pillarData.map(item => (
-                  <td key={item.label} className="py-2 text-xs text-stone-500">{item.naYin}</td>
-                ))}
-              </tr>
-              <tr className="border-b border-stone-100">
-                <td className="py-2 text-xs text-stone-400">十神</td>
-                {pillarData.map(item => (
-                  <td key={item.label} className="py-2 text-sm font-medium text-stone-700">{item.shiShen ?? '—'}</td>
-                ))}
-              </tr>
-              <tr>
-                <td className="py-3 text-xs text-stone-400">藏干</td>
-                {pillarData.map(item => (
-                  <td key={item.label} className="py-3">
-                    <div className="flex flex-wrap justify-center gap-1">
-                      {item.cangGan?.gan.map((gan, index) => (
-                        <span
-                          key={`${gan}-${index}`}
-                          className={`rounded-full px-2 py-0.5 text-xs ${
-                            index === 0
-                              ? 'bg-stone-900 text-white'
-                              : 'bg-stone-100 text-stone-600'
-                          }`}
-                        >
-                          {gan}·{item.cangGan?.shiShen[index]}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <InfoTile label="公历" value={result.solar} />
-          <InfoTile label="农历" value={result.lunar} />
-          <InfoTile label="生肖 / 星座" value={`${result.shengXiao} / ${result.xingZuo}`} />
-          <InfoTile label="星期 / 季节" value={`${result.xingQi} / ${result.jiJie}`} />
-          <InfoTile label="空亡" value={result.baZiKongWang.join('、')} />
-          <InfoTile label="胎元" value={result.taiYuan} />
-          <InfoTile label="命宫 / 身宫" value={`${result.mingGong ?? '-'} / ${result.shenGong ?? '-'}`} />
-          <InfoTile label="日主论命" value={result.riZhuLunMing} />
-        </div>
-      </Section>
-
-      <Section
-        id="strength"
-        title="判断"
-        summary={`${result.shenQiangShenRuo?.result ?? '未判定'}，${result.xiYongShen ?? '未输出喜用神'}`}
-        defaultOpen
-      >
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {wuXingData.map(item => (
-            <div key={item.name} className="rounded-3xl border border-stone-200 bg-stone-50 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-stone-700">{item.name}</span>
-                <span className="text-2xl font-semibold text-stone-900">{item.count}</span>
-              </div>
-              <div className="mt-4 h-2 rounded-full bg-stone-200">
-                <div
-                  className={`h-2 rounded-full ${item.color}`}
-                  style={{ width: `${item.count === 0 ? 0 : Math.max((item.count / maxWuXing) * 100, 10)}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-            <h3 className="text-lg font-semibold text-stone-900">五行判断</h3>
-            <div className="mt-4 space-y-3 text-sm text-stone-700">
-              <p>旺衰：{result.wuXingWangShuai ?? '未判定'}</p>
-              <p>缺失：{result.wuXingQueShi?.length ? result.wuXingQueShi.join('、') : '无明显缺失'}</p>
-              <p>喜用神：{result.xiYongShen ?? '未输出'}</p>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-            <h3 className="text-lg font-semibold text-stone-900">身强身弱</h3>
-            <div className="mt-4 space-y-3 text-sm text-stone-700">
-              <p>结果：{result.shenQiangShenRuo?.result ?? '未判定'}</p>
-              <p>评分：{result.shenQiangShenRuo?.score ?? '-'}</p>
-              <p>{result.shenQiangShenRuo?.analysis ?? '无分析文本'}</p>
-            </div>
-          </div>
-        </div>
-
-        {showConfig.showGeJu && result.geJu && (
-          <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-            <h3 className="text-lg font-semibold text-stone-900">{result.geJu.geJuName}</h3>
-            <p className="mt-2 text-sm text-stone-700">{result.geJu.geJuMeaning}</p>
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <InfoTile label="用神" value={result.geJu.yongShen} />
-              <InfoTile label="喜神" value={result.geJu.xiShen} />
-              <InfoTile label="忌神" value={result.geJu.jiShen} />
-              <InfoTile label="仇神" value={result.geJu.chouShen} />
-            </div>
-            <p className="mt-4 text-sm text-stone-600">成败判断：{result.geJu.geJuChengBai}</p>
-          </div>
-        )}
-      </Section>
-
-      <Section
-        id="fortune"
-        title="运势"
-        summary={
-          result.currentDaYun
-            ? `当前大运 ${result.currentDaYun.ganZhi}，当前流年 ${result.currentLiuNian?.ganZhi ?? '未定位'}`
-            : '起运前阶段'
-        }
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <InfoTile label="起运岁数" value={result.qiYunSui ? `${result.qiYunSui}岁` : '未计算'} />
-          <InfoTile label="起运日期" value={result.qiYunDate} />
-          <InfoTile
-            label="当前大运"
-            value={result.currentDaYun ? `${result.currentDaYun.ganZhi}（${result.currentDaYun.startAge}-${result.currentDaYun.endAge}岁）` : '未起运'}
-          />
-          <InfoTile
-            label="当前流年"
-            value={result.currentLiuNian ? `${result.currentLiuNian.year} ${result.currentLiuNian.ganZhi}` : '未定位'}
-          />
-        </div>
-
-        {result.daYun && result.daYun.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-stone-800">大运</h3>
-            <div className="flex gap-0 overflow-x-auto rounded-3xl border border-stone-200 bg-stone-50">
-              {result.daYun.map((item, index) => {
-                const isCurrent = result.currentDaYun?.startAge === item.startAge;
-                return (
-                  <div
-                    key={`${item.ganZhi}-${item.startAge}`}
-                    className={`flex min-w-[88px] flex-col items-center border-r border-stone-200 px-3 py-4 last:border-r-0 ${
-                      isCurrent ? 'bg-amber-50' : ''
-                    }`}
-                  >
-                    {isCurrent && <Badge variant="warning" size="sm">当前</Badge>}
-                    <div className={`mt-1 text-xl font-semibold ${ isCurrent ? 'text-amber-700' : 'text-stone-900'}`}>{item.ganZhi}</div>
-                    <div className="mt-1 text-xs text-stone-500">{item.startAge}–{item.endAge}岁</div>
-                    <div className="mt-1 text-xs text-stone-600">{item.shiShen}</div>
-                    {showConfig.showDaYunShenSha && item.shenSha && item.shenSha.length > 0 && (
-                      <div className="mt-2 flex flex-wrap justify-center gap-1">
-                        {item.shenSha.map(s => (
-                          <span key={s} className="rounded-full bg-stone-200 px-1.5 py-0.5 text-[10px] text-stone-600">{s}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {result.liuNian && result.liuNian.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-stone-800">流年</h3>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              {result.liuNian.map(item => (
-                <div
-                  key={`${item.year}-${item.ganZhi}`}
-                  className={`rounded-2xl border px-4 py-3 ${
-                    result.currentLiuNian?.year === item.year
-                      ? 'border-amber-300 bg-amber-50 ring-2 ring-amber-200'
-                      : 'border-stone-200 bg-white'
-                  }`}
-                >
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">{item.year}</div>
-                  <div className="mt-2 text-lg font-semibold text-stone-900">{item.ganZhi}</div>
-                  <div className="mt-1 text-sm text-stone-600">{item.age}岁 · {item.shiShen}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {showConfig.showXiaoYun && result.xiaoYun && result.xiaoYun.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-stone-800">小运</h3>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {result.xiaoYun.map(item => (
-                <div key={`${item.age}-${item.ganZhi}`} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                  <div className="text-sm text-stone-500">{item.age}岁</div>
-                  <div className="mt-1 text-lg font-semibold text-stone-900">{item.ganZhi}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          {showConfig.showLiuYue && result.liuYue && result.liuYue.length > 0 && (
-            <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-              <h3 className="text-lg font-semibold text-stone-900">流月</h3>
-              <div className="mt-4 grid gap-2">
-                {result.liuYue.map(item => (
-                  <div key={`${item.month}-${item.ganZhi}`} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm text-stone-700">
-                    <span>{item.monthName}</span>
-                    <span className="font-medium">{item.ganZhi}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {showConfig.showLiuRi && result.liuRi && result.liuRi.length > 0 && (
-            <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-              <h3 className="text-lg font-semibold text-stone-900">流日</h3>
-              <div className="mt-4 grid max-h-80 gap-2 overflow-auto pr-1">
-                {result.liuRi.map(item => (
-                  <div key={`${item.day}-${item.ganZhi}`} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm text-stone-700">
-                    <span>{item.day}日</span>
-                    <span className="font-medium">{item.ganZhi}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {showConfig.showLiuShi && result.liuShi && result.liuShi.length > 0 && (
-            <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-              <h3 className="text-lg font-semibold text-stone-900">流时</h3>
-              <div className="mt-4 grid gap-2">
-                {result.liuShi.map(item => (
-                  <div key={`${item.hour}-${item.ganZhi}`} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm text-stone-700">
-                    <span>{item.hourName}</span>
-                    <span className="font-medium">{item.ganZhi}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </Section>
-
-      <Section
-        id="relations"
-        title="结构"
-        summary="十神、藏干、生克与干支关系分层展示"
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <InfoTile label="年干 / 年支" value={`${result.yearGan}${result.yearZhi}`} />
-          <InfoTile label="月干 / 月支" value={`${result.monthGan}${result.monthZhi}`} />
-          <InfoTile label="日干 / 日支" value={`${result.dayGan}${result.dayZhi}`} />
-          <InfoTile label="时干 / 时支" value={`${result.hourGan}${result.hourZhi}`} />
-        </div>
-
-        {result.shiShen && (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <InfoTile label="年干十神" value={result.shiShen.year} />
-            <InfoTile label="月干十神" value={result.shiShen.month} />
-            <InfoTile label="日干十神" value={result.shiShen.day} />
-            <InfoTile label="时干十神" value={result.shiShen.hour} />
-          </div>
-        )}
-
-        {result.shiShenAnalysis && (
-          <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-            <h3 className="text-lg font-semibold text-stone-900">十神分析</h3>
-            <p className="mt-3 text-sm leading-7 text-stone-700">{result.shiShenAnalysis}</p>
-          </div>
-        )}
-
-        {result.wuXingShengKe && (
-          <div className="space-y-4">
-            <RelationGroup
-              title="天干五合"
-              items={result.wuXingShengKe.tianGanWuHe}
-              renderItem={(item, index) => (
-                <div key={`he-${index}`} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
-                  {item.position1} {item.gan1} 与 {item.position2} {item.gan2} 合化 {item.heHua}
-                </div>
-              )}
-            />
-            <RelationGroup
-              title="地支三合"
-              items={result.wuXingShengKe.diZhiSanHe}
-              renderItem={(item, index) => (
-                <div key={`sanhe-${index}`} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
-                  {item.positions.join(' / ')}：{item.zhis.join('、')} · {item.wuXing}
-                </div>
-              )}
-            />
-            <RelationGroup
-              title="地支三会"
-              items={result.wuXingShengKe.diZhiSanHui}
-              renderItem={(item, index) => (
-                <div key={`sanhui-${index}`} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
-                  {item.positions.join(' / ')}：{item.zhis.join('、')} · {item.wuXing}
-                </div>
-              )}
-            />
-            <RelationGroup
-              title="冲刑害破"
-              items={[
-                ...(result.wuXingShengKe.diZhiXiangChong ?? []).map(item => ({ ...item, label: '冲' })),
-                ...(result.wuXingShengKe.diZhiXiangHai ?? []).map(item => ({ ...item, label: '害' })),
-                ...(result.wuXingShengKe.diZhiXiangPo ?? []).map(item => ({ ...item, label: '破' })),
-              ]}
-              renderItem={(item, index) => (
-                <div key={`relation-${index}`} className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
-                  {item.position1} {item.zhi1} 与 {item.position2} {item.zhi2} 相{item.label}
-                </div>
-              )}
-            />
-          </div>
-        )}
-
-        {showConfig.showGanZhiLiuYi && result.ganZhiLiuYi && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-              <h3 className="text-lg font-semibold text-stone-900">天干留意</h3>
-              <div className="mt-4 space-y-2 text-sm text-stone-700">
-                {result.ganZhiLiuYi.tianGanSheng.map((item, index) => (
-                  <div key={`sheng-${index}`} className="rounded-xl bg-white px-3 py-2">
-                    {item.position1} {item.gan1} 生 {item.position2} {item.gan2}
-                  </div>
-                ))}
-                {result.ganZhiLiuYi.tianGanKe.map((item, index) => (
-                  <div key={`ke-${index}`} className="rounded-xl bg-white px-3 py-2">
-                    {item.position1} {item.gan1} 克 {item.position2} {item.gan2}
-                  </div>
-                ))}
-                {result.ganZhiLiuYi.tianGanChong.map((item, index) => (
-                  <div key={`chong-${index}`} className="rounded-xl bg-white px-3 py-2">
-                    {item.position1} {item.gan1} 冲 {item.position2} {item.gan2}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-              <h3 className="text-lg font-semibold text-stone-900">地支留意</h3>
-              <div className="mt-4 space-y-2 text-sm text-stone-700">
-                {result.ganZhiLiuYi.diZhiBanHe.map((item, index) => (
-                  <div key={`banhe-${index}`} className="rounded-xl bg-white px-3 py-2">
-                    {item.position1} {item.zhi1} 与 {item.position2} {item.zhi2} 半合 {item.wuXing}
-                  </div>
-                ))}
-                {result.ganZhiLiuYi.diZhiGongHe.map((item, index) => (
-                  <div key={`gonghe-${index}`} className="rounded-xl bg-white px-3 py-2">
-                    {item.position1} {item.zhi1} 与 {item.position2} {item.zhi2} 拱合 {item.wuXing}，缺 {item.missing}
-                  </div>
-                ))}
-                {result.ganZhiLiuYi.diZhiAnHe.map((item, index) => (
-                  <div key={`anhe-${index}`} className="rounded-xl bg-white px-3 py-2">
-                    {item.position1} {item.zhi1} 与 {item.position2} {item.zhi2} {item.relation}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </Section>
-
-      <Section
-        id="insights"
-        title="细化解释"
-        summary="把扩展判断和长文本拆成可快速浏览的模块"
-      >
-        {result.detailedAnalysis && (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <InfoTile label="性格" value={result.detailedAnalysis.xingGeAnalysis} />
-            <InfoTile label="财运" value={result.detailedAnalysis.caiYunAnalysis} />
-            <InfoTile label="事业" value={result.detailedAnalysis.shiYeAnalysis} />
-            <InfoTile label="感情" value={result.detailedAnalysis.ganQingAnalysis} />
-            <InfoTile label="健康" value={result.detailedAnalysis.jiankangAnalysis} />
-          </div>
-        )}
-
-        {showConfig.showJiuXing && result.jiuXing && (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {(['year', 'month', 'day', 'hour'] as const).map(period => {
-              const PERIOD_LABELS = { year: '年星', month: '月星', day: '日星', hour: '时星' } as const;
-              return (
-              <div key={period} className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-                <div className="text-xs uppercase tracking-[0.2em] text-stone-400">{PERIOD_LABELS[period]}</div>
-                <div className="mt-3 space-y-2 text-sm text-stone-700">
-                  <div>五行：{result.jiuXing?.[period].wuXing}</div>
-                  <div>方位：{result.jiuXing?.[period].positionDesc}</div>
-                  <div>玄空：{result.jiuXing?.[period].xuanKong}</div>
-                  <div>北斗：{result.jiuXing?.[period].beiDou}</div>
-                  <div>奇门：{result.jiuXing?.[period].qiMen}</div>
-                  <div>吉凶：{result.jiuXing?.[period].qiMenLuck} / {result.jiuXing?.[period].xuanKongLuck}</div>
-                </div>
-              </div>
-            ); })}
-          </div>
-        )}
-
-        {showConfig.showShenSha && result.shenSha && (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {result.shenSha.map((items, index) => (
-              <div key={`shensha-${index}`} className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-                <h3 className="text-lg font-semibold text-stone-900">{pillarData[index]?.label}</h3>
-                <div className="mt-4">
-                  <TagList items={items} />
-                </div>
-              </div>
+      <div className="rounded-[30px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,251,245,0.82)] p-4 shadow-[0_28px_52px_-38px_rgba(58,35,10,0.6)] backdrop-blur-xl sm:p-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-2">
+            {LINKS.map((link) => (
+              <a key={link.id} href={`#${link.id}`} className="rounded-full border border-[rgba(117,76,40,0.14)] bg-[rgba(255,252,247,0.88)] px-4 py-2 text-sm text-[#5b4430] transition hover:border-[#a27140] hover:bg-[#fff7ed]">
+                {link.label}
+              </a>
             ))}
           </div>
-        )}
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <InfoTile label="彭祖百忌" value={result.pengZuBaiJi ? `${result.pengZuBaiJi.gan} / ${result.pengZuBaiJi.zhi}` : undefined} />
-          <InfoTile label="命卦" value={result.mingGua} />
-          <InfoTile label="月将" value={result.yueJiang ? `${result.yueJiang.yueJiang} / ${result.yueJiang.yueJiangShen}` : undefined} />
-          <InfoTile label="五不遇时" value={result.wuBuYuShi ? '是' : '否'} />
-          <InfoTile label="骨重" value={result.guZhong ? `${result.guZhong.guZhongText} · ${result.guZhong.piZhu}` : undefined} />
-          <InfoTile label="节气" value={result.jieQiInfo ? `${result.jieQiInfo.current}，下一节气 ${result.jieQiInfo.next}` : undefined} />
-          <InfoTile label="冲生肖" value={result.chongShengXiao ? `${result.chongShengXiao.year} / ${result.chongShengXiao.month} / ${result.chongShengXiao.day} / ${result.chongShengXiao.hour}` : undefined} />
-        </div>
-
-        {(result.caiYun?.zhengCai?.length || result.caiYun?.pianCai?.length || result.taoHuaYun?.zhengTaoHua?.length || result.taoHuaYun?.pianTaoHua?.length) && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-              <h3 className="text-lg font-semibold text-stone-900">财运提示</h3>
-              <div className="mt-4 space-y-3 text-sm text-stone-700">
-                {(result.caiYun?.zhengCai ?? []).slice(0, 5).map(item => (
-                  <div key={`zhengcai-${item.ganZhi}-${item.year}-${item.age}`} className="rounded-xl bg-white px-3 py-2">
-                    正财：{item.ganZhi} {item.year > 0 ? `${item.year}年` : `${item.age}岁`}
-                  </div>
-                ))}
-                {(result.caiYun?.pianCai ?? []).slice(0, 5).map(item => (
-                  <div key={`piancai-${item.ganZhi}-${item.year}-${item.age}`} className="rounded-xl bg-white px-3 py-2">
-                    偏财：{item.ganZhi} {item.year > 0 ? `${item.year}年` : `${item.age}岁`}
-                  </div>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.34em] text-[#8a6239]">结果控制</p>
+                <h2 className="mt-2 text-xl font-semibold text-[#2f2118]">结果开关与导出</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {TOGGLES.map(({ key, label }) => (
+                  <button key={key} type="button" onClick={() => onToggle?.(key as keyof BaZiSettings, !config[key])} className={`rounded-full border px-3 py-1.5 text-xs transition ${config[key] ? 'border-[#4a2d19] bg-[#4a2d19] text-white' : 'border-[rgba(117,76,40,0.16)] bg-[rgba(255,252,247,0.88)] text-[#5d4732] hover:border-[#a27140] hover:bg-[#fff7ed]'}`}>
+                    {label}
+                  </button>
                 ))}
               </div>
             </div>
+            <div className="flex flex-wrap gap-3">
+              <CopyButton text={reportText} className="border-[rgba(117,76,40,0.14)] bg-[rgba(255,252,247,0.88)] text-[#5d4732] hover:border-[#a27140] hover:bg-[#fff7ed]">复制文本报告</CopyButton>
+              <ExportButton data={result} filename={`八字排盘-${result.name || '未命名'}`} type="json" className="border-[rgba(117,76,40,0.14)] bg-[rgba(255,252,247,0.88)] text-[#5d4732] hover:border-[#a27140] hover:bg-[#fff7ed]">导出原始数据</ExportButton>
+              <ExportButton data={result} filename={`八字排盘-${result.name || '未命名'}`} type="image" targetId={reportTargetId} className="border-[rgba(117,76,40,0.14)] bg-[rgba(255,252,247,0.88)] text-[#5d4732] hover:border-[#a27140] hover:bg-[#fff7ed]">导出图像</ExportButton>
+              <PrintButton targetId={reportTargetId} className="border-[rgba(117,76,40,0.14)] bg-[rgba(255,252,247,0.88)] text-[#5d4732] hover:border-[#a27140] hover:bg-[#fff7ed]">打印结果</PrintButton>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            <div className="rounded-3xl border border-stone-200 bg-stone-50 p-5">
-              <h3 className="text-lg font-semibold text-stone-900">桃花提示</h3>
-              <div className="mt-4 space-y-3 text-sm text-stone-700">
-                {(result.taoHuaYun?.zhengTaoHua ?? []).slice(0, 5).map(item => (
-                  <div key={`zhengtaohua-${item.ganZhi}-${item.year}-${item.age}`} className="rounded-xl bg-white px-3 py-2">
-                    正桃花：{item.ganZhi} {item.year > 0 ? `${item.year}年` : `${item.age}岁`}
-                  </div>
+      <div id={reportTargetId} className="space-y-6">
+        <section className="overflow-hidden rounded-[34px] border border-[#6b4524]/15 bg-[radial-gradient(circle_at_top_left,rgba(255,212,141,0.22),transparent_28%),linear-gradient(135deg,#2c1b12_0%,#573520_52%,#98612e_100%)] p-5 text-white shadow-[0_34px_72px_-38px_rgba(72,38,10,0.95)] sm:p-6">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-5">
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white">当前命盘</span>
+                {result.qiYunDate ? <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white">起运 {result.qiYunDate}</span> : null}
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.36em] text-stone-300">八字排盘</p>
+                <h1 className="mt-3 text-[2.2rem] font-semibold tracking-[0.08em] text-white sm:text-[2.8rem]">{result.name || '未命名命盘'}</h1>
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-stone-200 sm:text-base">{join([result.sex, result.shengXiao, `${ageLabel} ${result.age}`, otherAge !== undefined ? `${otherAgeLabel} ${otherAge}` : undefined, result.solar])}</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {pillars.map((item) => (
+                  <article key={item.label} className="rounded-[22px] border border-white/10 bg-white/8 px-4 py-4">
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-stone-300">{item.label}</div>
+                    <div className="mt-3 text-[2rem] font-semibold tracking-[0.08em] text-white">{item.gz}</div>
+                    <div className="mt-3 text-xs text-stone-200">{item.wuXing}</div>
+                    <div className="mt-1 text-xs text-stone-300">{item.naYin}</div>
+                  </article>
                 ))}
-                {(result.taoHuaYun?.pianTaoHua ?? []).slice(0, 5).map(item => (
-                  <div key={`piantaohua-${item.ganZhi}-${item.year}-${item.age}`} className="rounded-xl bg-white px-3 py-2">
-                    偏桃花：{item.ganZhi} {item.year > 0 ? `${item.year}年` : `${item.age}岁`}
-                  </div>
-                ))}
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="rounded-[24px] border border-white/10 bg-white/10 p-4">
+                <div className="text-[11px] uppercase tracking-[0.24em] text-stone-300">命局结论</div>
+                <div className="mt-3 text-lg font-semibold leading-8 text-white">{join([result.shenQiangShenRuo?.result, config.showGeJu && result.geJu?.geJuName ? result.geJu.geJuName : undefined, result.xiYongShen ? `喜用 ${result.xiYongShen}` : undefined], '，')}</div>
+                <p className="mt-3 text-sm leading-7 text-stone-200">{join([config.showGeJu && result.geJu?.geJuMeaning ? result.geJu.geJuMeaning : undefined, result.shenQiangShenRuo?.analysis, result.shiShenAnalysis], ' ')}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Metric label="日主" value={result.dayGan} />
+                <Metric label="喜用神" value={result.xiYongShen ?? EMPTY} />
+                <Metric label="当前大运" value={result.currentDaYun ? result.currentDaYun.ganZhi : EMPTY} note={result.currentDaYun ? range(result.currentDaYun.startAge, result.currentDaYun.endAge) : undefined} />
+                <Metric label="当前流年" value={result.currentLiuNian ? result.currentLiuNian.ganZhi : EMPTY} note={result.currentLiuNian ? String(result.currentLiuNian.year) : undefined} />
               </div>
             </div>
           </div>
-        )}
-      </Section>
+        </section>
+
+        <Section id="overview" eyebrow="命盘概览" title="四柱全览与命盘底稿" description="四柱、历法、节气与宫位信息集中展示，便于先看整体格局。">
+          <div className="grid gap-4 xl:grid-cols-4">
+            {pillars.map((item) => (
+              <Card key={item.label} title={item.label}>
+                <div className="space-y-3 text-sm text-[#5d4732]">
+                  <div className="text-[2rem] font-semibold tracking-[0.06em] text-[#2f2118]">{item.gz}</div>
+                  <div>五行：{item.wuXing}</div>
+                  <div>纳音：{item.naYin}</div>
+                  <div>十神：{item.shiShen ?? EMPTY}</div>
+                  <div>空亡：{item.kongWang}</div>
+                  <div>地支十神：{join(item.zhiShiShen, '、')}</div>
+                  <Tags items={item.cangGan?.gan.map((gan, index) => `${gan} · ${item.cangGan?.shiShen[index]}`)} />
+                </div>
+              </Card>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <Card title="公历 / 农历"><div className="space-y-2 text-sm leading-7 text-[#5d4732]"><div>{result.solar}</div><div>{result.lunar}</div></div></Card>
+              <Card title="年龄与生肖"><div className="space-y-2 text-sm leading-7 text-[#5d4732]"><div>{ageLabel} {result.age}{otherAge !== undefined ? ` / ${otherAgeLabel} ${otherAge}` : ''}</div><div>{join([result.shengXiao, result.xingZuo, result.xingQi, result.jiJie])}</div></div></Card>
+              <Card title="胎元 / 命宫"><div className="space-y-2 text-sm leading-7 text-[#5d4732]"><div>胎元：{result.taiYuan ?? EMPTY}</div><div>胎息：{result.taiXi ?? EMPTY}</div><div>命宫：{result.mingGong ?? EMPTY}</div><div>身宫：{result.shenGong ?? EMPTY}</div></div></Card>
+            </div>
+            <div className="space-y-4">
+              <Card title="节气信息">{result.jieQiInfo ? <div className="space-y-2 text-sm leading-7 text-[#5d4732]"><div>上一节气：{result.jieQiInfo.prev}</div><div>当前节气：{join([result.jieQiInfo.current, result.jieQiInfo.currentTime])}</div><div>下一节气：{join([result.jieQiInfo.next, result.jieQiInfo.nextTime, result.jieQiInfo.daysToNext !== undefined ? `距离出生 ${result.jieQiInfo.daysToNext} 天` : undefined])}</div></div> : <span className="text-sm text-[#7b6b5f]">{EMPTY}</span>}</Card>
+              <Card title="补充提示"><div className="space-y-2 text-sm leading-7 text-[#5d4732]"><div>冲生肖：{join(Object.values(result.chongShengXiao ?? {}), '、')}</div><div>五不遇时：{result.wuBuYuShi ? '是' : '否'}</div><div>称骨：{result.guZhong ? `${result.guZhong.guZhongText}（${result.guZhong.guZhong} 两）` : EMPTY}</div></div></Card>
+            </div>
+          </div>
+        </Section>
+
+        <Section id="strength" eyebrow="命局判断" title="五行平衡与命局判断" description="主判断单独成区，五行计量、身强身弱与格局摘要并排，让判断不再被表格淹没。">
+          <div className="grid gap-4 xl:grid-cols-3">
+            <Card title="五行计量">
+              <div className="space-y-3">
+                {wuXing.map((item) => (
+                  <div key={item.name} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm text-[#5d4732]"><span>{item.name}</span><span>{item.count}</span></div>
+                    <div className="h-2.5 rounded-full bg-[#efe4d5]"><div className="h-2.5 rounded-full" style={{ width: `${(item.count / maxCount) * 100}%`, backgroundColor: item.color }} /></div>
+                  </div>
+                ))}
+                <div className="pt-2 text-sm leading-7 text-[#5d4732]">旺衰：{result.wuXingWangShuai ?? EMPTY}<br />缺失：{join(result.wuXingQueShi, '、')}<br />喜用神：{result.xiYongShen ?? EMPTY}</div>
+              </div>
+            </Card>
+            <Card title="身强身弱">{result.shenQiangShenRuo ? <div className="space-y-4 text-sm leading-7 text-[#5d4732]"><div className="text-[2rem] font-semibold tracking-[0.04em] text-[#2f2118]">{result.shenQiangShenRuo.result}{result.shenQiangShenRuo.score > 0 ? ` +${result.shenQiangShenRuo.score}` : ` ${result.shenQiangShenRuo.score}`}</div><p>{result.shenQiangShenRuo.analysis}</p></div> : <span className="text-sm text-[#7b6b5f]">{EMPTY}</span>}</Card>
+            <Card title="格局摘要">{config.showGeJu && result.geJu ? <div className="space-y-3 text-sm leading-7 text-[#5d4732]"><div className="text-[2rem] font-semibold tracking-[0.04em] text-[#2f2118]">{result.geJu.geJuName}</div><div>{result.geJu.geJuMeaning}</div><div>用神：{result.geJu.yongShen}</div><div>喜神：{result.geJu.xiShen}</div><div>忌神：{result.geJu.jiShen}</div><div>仇神：{result.geJu.chouShen}</div></div> : <div className="space-y-3 text-sm leading-7 text-[#5d4732]"><div>十神格局分析：{result.shiShenAnalysis ?? EMPTY}</div><div>日柱论命：{result.riZhuLunMing ?? EMPTY}</div></div>}</Card>
+          </div>
+        </Section>
+
+        <Section id="fortune" eyebrow="流运时间轴" title="大运与流年时间轴" description="先把当前周期抬出来，再依次铺开大运、流年和短周期，保留完整信息但降低拥挤感。">
+          <div className="grid gap-4 xl:grid-cols-5">
+            {pickTimelineWindow(result.daYun ?? [], result.currentDaYun?.ganZhi).map((item) => {
+              const active = result.currentDaYun?.ganZhi === item.ganZhi;
+              return (
+                <div key={`${item.ganZhi}-${item.startAge}`} className={`rounded-[22px] border px-4 py-4 shadow-[0_20px_40px_-34px_rgba(56,35,12,0.75)] ${active ? 'border-[#5a351a] bg-[linear-gradient(135deg,#5a351a,#9a602e)] text-white' : 'border-[rgba(117,76,40,0.12)] bg-[rgba(255,253,248,0.9)] text-[#2f2118]'}`}>
+                  <div className={`text-[11px] uppercase tracking-[0.22em] ${active ? 'text-stone-200' : 'text-[#8a6239]'}`}>{range(item.startAge, item.endAge)}</div>
+                  <div className="mt-3 text-2xl font-semibold tracking-[0.06em]">{item.ganZhi}</div>
+                  <div className={`mt-2 text-sm leading-7 ${active ? 'text-stone-200' : 'text-[#6f5e51]'}`}>{join([item.shiShen, config.showDaYunShenSha ? item.shenSha?.slice(0, 2).join('、') : undefined])}</div>
+                </div>
+              );
+            })}
+            {result.currentLiuNian ? <div className="rounded-[22px] border border-[#5a351a] bg-[linear-gradient(135deg,#5a351a,#9a602e)] px-4 py-4 text-white shadow-[0_20px_40px_-34px_rgba(56,35,12,0.75)]"><div className="text-[11px] uppercase tracking-[0.22em] text-stone-200">{result.currentLiuNian.year} 流年</div><div className="mt-3 text-2xl font-semibold tracking-[0.06em]">{result.currentLiuNian.ganZhi}</div><div className="mt-2 text-sm leading-7 text-stone-200">{join([`${result.currentLiuNian.age} 岁`, result.currentLiuNian.shiShen])}</div></div> : null}
+          </div>
+          {result.daYun?.length ? <div className="mt-4"><Card title="大运序列"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{result.daYun.slice(0, 10).map((item, index) => { const active = result.currentDaYun?.ganZhi === item.ganZhi; return <div key={`${item.ganZhi}-${index}`} className={`rounded-[20px] border px-4 py-3 ${active ? 'border-[#4a2d19] bg-[#4a2d19] text-white' : 'border-[rgba(117,76,40,0.12)] bg-[#fffaf4] text-[#2f2118]'}`}><div className="text-lg font-semibold tracking-[0.04em]">{item.ganZhi}</div><div className={`mt-1 text-sm ${active ? 'text-stone-200' : 'text-[#6f5e51]'}`}>{item.shiShen}</div><div className={`mt-1 text-xs ${active ? 'text-stone-300' : 'text-[#7b6b5f]'}`}>{range(item.startAge, item.endAge)}</div>{config.showDaYunShenSha ? <div className="mt-3"><Tags items={item.shenSha?.slice(0, 4)} tone={active ? 'ink' : 'default'} /></div> : null}</div>; })}</div></Card></div> : null}
+          {result.liuNian?.length ? <div className="mt-4"><Card title="近期流年"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{result.liuNian.map((item, index) => <div key={`${item.year}-${index}`} className={`rounded-[20px] border px-4 py-3 ${result.currentLiuNian?.year === item.year ? 'border-[#7da28e] bg-[#eef6f0]' : 'border-[rgba(117,76,40,0.12)] bg-[#fffaf4]'}`}><div className="text-xs text-[#7b6b5f]">{item.year}</div><div className="mt-1 text-xl font-semibold tracking-[0.04em] text-[#2f2118]">{item.ganZhi}</div><div className="mt-2 text-sm text-[#6f5e51]">{item.shiShen} · {item.age} 岁</div>{config.showLiuNianShenSha ? <div className="mt-3"><Tags items={item.shenSha?.slice(0, 4)} tone="warning" /></div> : null}</div>)}</div></Card></div> : null}
+          {config.showXiaoYun && result.xiaoYun?.length ? <div className="mt-4"><Card title="小运"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">{result.xiaoYun.map((item, index) => <div key={`${item.ganZhi}-${index}`} className="rounded-[20px] border border-[rgba(117,76,40,0.12)] bg-[#fffaf4] px-4 py-3 text-center"><div className="text-lg font-semibold tracking-[0.04em] text-[#2f2118]">{item.ganZhi}</div><div className="mt-1 text-sm text-[#6f5e51]">{item.age} 岁</div></div>)}</div></Card></div> : null}
+          {config.showLiuYue && result.liuYue?.length ? <div className="mt-4"><Card title="流月"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">{result.liuYue.map((item, index) => <div key={`${item.month}-${index}`} className={`rounded-[20px] border px-4 py-3 ${item.isCurrent ? 'border-[#7c99b4] bg-[#eff6fc]' : 'border-[rgba(117,76,40,0.12)] bg-[#fffaf4]'}`}><div className="text-xs text-[#7b6b5f]">{item.monthName}</div><div className="mt-1 text-xl font-semibold tracking-[0.04em] text-[#2f2118]">{item.ganZhi}</div><div className="mt-2 text-sm text-[#6f5e51]">{item.month} 月{item.isCurrent ? ' · 当前' : ''}</div></div>)}</div></Card></div> : null}
+          {config.showLiuRi && result.liuRi?.length ? <div className="mt-4"><Card title="流日"><div className="grid max-h-[28rem] gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-7">{result.liuRi.map((item, index) => <div key={`${item.day}-${index}`} className={`rounded-[18px] border px-3 py-3 text-center ${item.isCurrent ? 'border-[#82a98f] bg-[#edf6ef]' : 'border-[rgba(117,76,40,0.12)] bg-[#fffaf4]'}`}><div className="text-xs text-[#7b6b5f]">{item.day} 日{item.isCurrent ? ' · 今日' : ''}</div><div className="mt-1 text-sm font-semibold text-[#2f2118]">{item.ganZhi}</div></div>)}</div></Card></div> : null}
+          {config.showLiuShi && result.liuShi?.length ? <div className="mt-4"><Card title="流时"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">{result.liuShi.map((item, index) => <div key={`${item.hour}-${index}`} className={`rounded-[20px] border px-4 py-3 ${item.isCurrent ? 'border-[#b78572] bg-[#fbf1ee]' : 'border-[rgba(117,76,40,0.12)] bg-[#fffaf4]'}`}><div className="text-xs text-[#7b6b5f]">{item.hourName}{item.isCurrent ? ' · 当前' : ''}</div><div className="mt-1 text-xl font-semibold tracking-[0.04em] text-[#2f2118]">{item.ganZhi}</div><div className="mt-2 text-sm text-[#6f5e51]">{item.hour} 时</div></div>)}</div></Card></div> : null}
+        </Section>
+
+        <Section id="relations" eyebrow="结构辅助" title="结构关系与辅助系统" description="合冲刑害、十神藏干、神煞和九星等信息集中收纳，方便对照查看。">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card title="结构关系">{(() => {
+              const relationBlocks = [
+                { title: '天干五合', items: result.wuXingShengKe?.tianGanWuHe?.map((item) => `${item.position1}${item.gan1} 与 ${item.position2}${item.gan2}${item.heHua ? `，化 ${item.heHua}` : ''}`) },
+                { title: '地支三合', items: result.wuXingShengKe?.diZhiSanHe?.map((item) => `${item.positions.join('、')} · ${item.zhis.join('、')} · ${item.isComplete ? '三合' : '半合'}${item.wuXing}局`) },
+                { title: '地支三会', items: result.wuXingShengKe?.diZhiSanHui?.map((item) => `${item.positions.join('、')} · ${item.zhis.join('、')} · ${item.isComplete ? '三会' : '半会'}${item.wuXing}局`) },
+                { title: '地支六合', items: result.wuXingShengKe?.diZhiLiuHe?.map((item) => `${item.position1}${item.zhi1} 与 ${item.position2}${item.zhi2}${item.heHua ? `，化 ${item.heHua}` : ''}`) },
+                { title: '地支相冲', items: result.wuXingShengKe?.diZhiXiangChong?.map((item) => `${item.position1}${item.zhi1} 冲 ${item.position2}${item.zhi2}`) },
+                { title: '地支相刑', items: result.wuXingShengKe?.diZhiXiangXing?.map((item) => `${item.positions.join('、')} · ${item.zhis.join('、')} · ${item.xingType}`) },
+                { title: '地支相害', items: result.wuXingShengKe?.diZhiXiangHai?.map((item) => `${item.position1}${item.zhi1} 害 ${item.position2}${item.zhi2}`) },
+                { title: '地支相破', items: result.wuXingShengKe?.diZhiXiangPo?.map((item) => `${item.position1}${item.zhi1} 破 ${item.position2}${item.zhi2}`) },
+              ].filter((item) => item.items?.length);
+              return relationBlocks.length ? <div className="space-y-3">{relationBlocks.map((block) => <div key={block.title} className="rounded-[18px] border border-[rgba(117,76,40,0.12)] bg-[#fffaf4] p-3"><div className="text-sm font-medium text-[#2f2118]">{block.title}</div><div className="mt-2 space-y-1.5 text-sm leading-7 text-[#5d4732]">{block.items?.map((item, index) => <div key={`${block.title}-${index}`}>{item}</div>)}</div></div>)}</div> : <span className="text-sm text-[#7b6b5f]">{EMPTY}</span>;
+            })()}</Card>
+            <Card title="十神与藏干"><div className="grid gap-3">{pillars.map((item) => <div key={item.label} className="rounded-[18px] border border-[rgba(117,76,40,0.12)] bg-[#fffaf4] p-3"><div className="flex items-center justify-between gap-3"><div><div className="text-[11px] uppercase tracking-[0.24em] text-[#8a6239]">{item.label}</div><div className="mt-1 text-lg font-semibold tracking-[0.04em] text-[#2f2118]">{item.gz}</div></div><span className="rounded-full border border-[rgba(117,76,40,0.14)] bg-white/90 px-3 py-1 text-xs text-[#5d4732]">{item.shiShen ?? EMPTY}</span></div><div className="mt-3 space-y-2 text-sm text-[#5d4732]"><div>地支十神：{join(item.zhiShiShen, '、')}</div><Tags items={item.cangGan?.gan.map((gan, index) => `${gan} · ${item.cangGan?.shiShen[index]}`)} /></div></div>)}</div></Card>
+          </div>
+          {config.showGanZhiLiuYi ? <div className="mt-4"><Card title="干支留意">{(() => {
+            const ganZhiBlocks = result.ganZhiLiuYi ? [
+              { title: '天干相生', items: result.ganZhiLiuYi.tianGanSheng?.map((item) => `${item.position1}${item.gan1} 生 ${item.position2}${item.gan2} · ${item.relation}`) },
+              { title: '天干相克', items: result.ganZhiLiuYi.tianGanKe?.map((item) => `${item.position1}${item.gan1} 克 ${item.position2}${item.gan2} · ${item.relation}`) },
+              { title: '天干相冲', items: result.ganZhiLiuYi.tianGanChong?.map((item) => `${item.position1}${item.gan1} 冲 ${item.position2}${item.gan2}`) },
+              { title: '地支半合', items: result.ganZhiLiuYi.diZhiBanHe?.map((item) => `${item.position1}${item.zhi1} 与 ${item.position2}${item.zhi2} · ${item.wuXing}`) },
+              { title: '地支拱合', items: result.ganZhiLiuYi.diZhiGongHe?.map((item) => `${item.position1}${item.zhi1} 与 ${item.position2}${item.zhi2} · ${item.wuXing}，缺 ${item.missing}`) },
+              { title: '地支暗合', items: result.ganZhiLiuYi.diZhiAnHe?.map((item) => `${item.position1}${item.zhi1} 与 ${item.position2}${item.zhi2} · ${item.relation}`) },
+            ].filter((item) => item.items?.length) : [];
+            return ganZhiBlocks.length ? <div className="grid gap-3 xl:grid-cols-2">{ganZhiBlocks.map((block) => <div key={block.title} className="rounded-[18px] border border-[rgba(117,76,40,0.12)] bg-[#fffaf4] p-4"><div className="text-sm font-medium text-[#2f2118]">{block.title}</div><div className="mt-2 space-y-1.5 text-sm leading-7 text-[#5d4732]">{block.items?.map((item, index) => <div key={`${block.title}-${index}`}>{item}</div>)}</div></div>)}</div> : <span className="text-sm text-[#7b6b5f]">{EMPTY}</span>;
+          })()}</Card></div> : null}
+          {config.showShenSha ? <div className="mt-4"><Card title="神煞汇总"><div className="space-y-4"><Tags items={unique(result.shenSha)} tone="warning" /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{pillars.map((item, index) => <div key={item.label} className="rounded-[20px] border border-[rgba(117,76,40,0.12)] bg-[#fffaf4] p-4"><div className="text-[11px] uppercase tracking-[0.24em] text-[#8a6239]">{item.label}</div><div className="mt-1 text-lg font-semibold tracking-[0.04em] text-[#2f2118]">{item.gz}</div><div className="mt-3"><Tags items={result.shenSha?.[index]} /></div></div>)}</div></div></Card></div> : null}
+        </Section>
+
+        <Section id="insights" eyebrow="细读批注" title="细化解释与报告语气" description="长文本拆成专题卡片，便于后续接 AI 解读、专家批注和打印输出。">
+          {result.detailedAnalysis ? <div className="grid gap-4 xl:grid-cols-2">{[
+            ['性格分析', result.detailedAnalysis.xingGeAnalysis],
+            ['财运分析', result.detailedAnalysis.caiYunAnalysis],
+            ['事业分析', result.detailedAnalysis.shiYeAnalysis],
+            ['感情分析', result.detailedAnalysis.ganQingAnalysis],
+            ['健康分析', result.detailedAnalysis.jiankangAnalysis],
+          ].map(([title, value]) => <Card key={title} title={title}><p className="whitespace-pre-line text-sm leading-8 text-[#5d4732]">{value || EMPTY}</p></Card>)}</div> : null}
+          <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <Card title="补充解读"><div className="space-y-4 text-sm leading-8 text-[#5d4732]"><div><div className="font-medium text-[#2f2118]">十神格局分析</div><p className="mt-1">{result.shiShenAnalysis ?? EMPTY}</p></div><div><div className="font-medium text-[#2f2118]">日柱论命</div><p className="mt-1">{result.riZhuLunMing ?? EMPTY}</p></div><div><div className="font-medium text-[#2f2118]">冲生肖</div><p className="mt-1">{join(Object.values(result.chongShengXiao ?? {}), '、')}</p></div>{result.occupy ? <div><div className="font-medium text-[#2f2118]">当前占事</div><p className="mt-1">{result.occupy}</p></div> : null}</div></Card>
+            <Card title="附记"><div className="space-y-3 text-sm leading-7 text-[#5d4732]"><div>彭祖百忌：{result.pengZuBaiJi ? `${result.pengZuBaiJi.gan}${result.pengZuBaiJi.zhi}` : EMPTY}</div><div>命卦：{result.mingGua ?? EMPTY}</div><div>月将：{result.yueJiang ? `${result.yueJiang.yueJiang} / ${result.yueJiang.yueJiangShen}` : EMPTY}</div><div>人元司令：{result.renYuanSiLingFenYe ?? EMPTY}</div><div>五不遇时：{result.wuBuYuShi ? '是' : '否'}</div><div>称骨：{result.guZhong ? `${result.guZhong.guZhongText}（${result.guZhong.guZhong} 两）` : EMPTY}</div></div></Card>
+          </div>
+        </Section>
+      </div>
     </div>
   );
 }

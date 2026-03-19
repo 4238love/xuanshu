@@ -20,10 +20,10 @@ export const Card: React.FC<CardProps> = ({
   bodyClassName = ''
 }) => {
   return (
-    <div className={`bg-white rounded-2xl shadow-xl overflow-hidden ${className}`}>
+    <div className={`overflow-hidden rounded-[30px] border border-[rgba(114,76,37,0.12)] bg-[rgba(255,250,242,0.84)] shadow-[0_30px_60px_-36px_rgba(61,37,15,0.48)] backdrop-blur-xl ${className}`}>
       {title && (
-        <div className={`p-6 ${gradient ? `bg-gradient-to-r ${gradient}` : 'bg-gray-50'} ${headerClassName}`}>
-          <h2 className={`text-2xl font-bold flex items-center gap-2 ${gradient ? 'text-white' : 'text-gray-800'}`}>
+        <div className={`p-6 ${gradient ? `bg-gradient-to-r ${gradient}` : 'bg-[linear-gradient(135deg,#4b2e19,#8f5b2d)]'} ${headerClassName}`}>
+          <h2 className={`flex items-center gap-2 text-2xl font-bold tracking-[0.04em] ${gradient ? 'text-white' : 'text-white'}`}>
             {icon && <span className="text-3xl">{icon}</span>}
             {title}
           </h2>
@@ -47,15 +47,15 @@ interface InfoCardProps {
 export const InfoCard: React.FC<InfoCardProps> = ({
   label,
   value,
-  color = 'from-blue-50 to-cyan-50',
+  color = 'from-[#fbf4e8] to-[#f4e4c8]',
   icon,
   className = ''
 }) => {
   return (
-    <div className={`p-4 bg-gradient-to-br ${color} rounded-lg text-center border ${className}`}>
+    <div className={`rounded-[22px] border border-[rgba(114,76,37,0.12)] bg-gradient-to-br ${color} p-4 text-center shadow-[0_18px_34px_-28px_rgba(61,37,15,0.4)] ${className}`}>
       {icon && <div className="text-2xl mb-2">{icon}</div>}
-      <div className="text-xs text-gray-600 mb-1">{label}</div>
-      <div className="text-lg font-bold text-gray-800">{value}</div>
+      <div className="mb-1 text-[11px] uppercase tracking-[0.2em] text-[#8a6239]">{label}</div>
+      <div className="text-lg font-bold text-[#2f2118]">{value}</div>
     </div>
   );
 };

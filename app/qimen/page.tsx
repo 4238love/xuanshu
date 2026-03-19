@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { createQiMenPaiPan } from '@/lib/qimen';
 import { QiMenSettings, QiMenResult } from '@/types';
 import { Card, InfoCard } from '@/components/ui/Card';
@@ -11,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Loading } from '@/components/ui/Loading';
 import { AIAssistant } from '@/components/ai';
+import { PageLayout as DossierPageLayout, WorkbenchPanel, WorkbenchStat } from '@/components/ui/page-layout';
 
 export default function QiMenPage() {
   const [settings, setSettings] = useState<QiMenSettings>({
@@ -35,6 +35,61 @@ export default function QiMenPage() {
   const [result, setResult] = useState<QiMenResult | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const palaceMeta = [
+    { gong: '巽四宫', short: '巽四', index: 0, bagua: '☴', wuxing: '木', tone: 'emerald' },
+    { gong: '离九宫', short: '离九', index: 1, bagua: '☲', wuxing: '火', tone: 'rose' },
+    { gong: '坤二宫', short: '坤二', index: 2, bagua: '☷', wuxing: '土', tone: 'amber' },
+    { gong: '震三宫', short: '震三', index: 3, bagua: '☳', wuxing: '木', tone: 'teal' },
+    { gong: '中五宫', short: '中五', index: 4, bagua: '☯', wuxing: '土', tone: 'stone' },
+    { gong: '兑七宫', short: '兑七', index: 5, bagua: '☱', wuxing: '金', tone: 'slate' },
+    { gong: '坎一宫', short: '坎一', index: 6, bagua: '☵', wuxing: '水', tone: 'sky' },
+    { gong: '艮八宫', short: '艮八', index: 7, bagua: '☶', wuxing: '土', tone: 'orange' },
+    { gong: '乾六宫', short: '乾六', index: 8, bagua: '☰', wuxing: '金', tone: 'amber' }
+  ] as const;
+
+  const toneStyles = {
+    emerald: {
+      shell: 'border-emerald-200 bg-[linear-gradient(180deg,rgba(240,253,244,0.96),rgba(236,253,245,0.92))]',
+      badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      strip: 'bg-emerald-600',
+    },
+    rose: {
+      shell: 'border-rose-200 bg-[linear-gradient(180deg,rgba(255,241,242,0.96),rgba(255,247,237,0.92))]',
+      badge: 'border-rose-200 bg-rose-50 text-rose-700',
+      strip: 'bg-rose-600',
+    },
+    amber: {
+      shell: 'border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.96),rgba(255,247,237,0.92))]',
+      badge: 'border-amber-200 bg-amber-50 text-amber-700',
+      strip: 'bg-amber-600',
+    },
+    teal: {
+      shell: 'border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,0.96),rgba(236,253,245,0.92))]',
+      badge: 'border-teal-200 bg-teal-50 text-teal-700',
+      strip: 'bg-teal-600',
+    },
+    stone: {
+      shell: 'border-stone-200 bg-[linear-gradient(180deg,rgba(250,245,236,0.96),rgba(255,250,242,0.92))]',
+      badge: 'border-stone-200 bg-stone-100 text-stone-700',
+      strip: 'bg-stone-700',
+    },
+    slate: {
+      shell: 'border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.92))]',
+      badge: 'border-slate-200 bg-slate-50 text-slate-700',
+      strip: 'bg-slate-700',
+    },
+    sky: {
+      shell: 'border-sky-200 bg-[linear-gradient(180deg,rgba(240,249,255,0.96),rgba(236,253,245,0.92))]',
+      badge: 'border-sky-200 bg-sky-50 text-sky-700',
+      strip: 'bg-sky-600',
+    },
+    orange: {
+      shell: 'border-orange-200 bg-[linear-gradient(180deg,rgba(255,247,237,0.96),rgba(255,251,235,0.92))]',
+      badge: 'border-orange-200 bg-orange-50 text-orange-700',
+      strip: 'bg-orange-600',
+    },
+  } as const;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -49,40 +104,34 @@ export default function QiMenPage() {
       setLoading(false);
     }
   };
+  const paiPanTypeLabel =
+    settings.paiPanType === 3 ? '时家奇门' : settings.paiPanType === 2 ? '日家奇门' : settings.paiPanType === 1 ? '月家奇门' : '年家奇门';
+  const panTypeLabel = settings.panType === 'zhuan' ? '转盘' : settings.panType === 'fei' ? '飞盘' : settings.panType;
+  const zhiShiTypeLabel = settings.zhiShiType === 2 ? '按节气判断' : settings.zhiShiType === 1 ? '按阴阳遁判断' : '死门为值使';
+  const quickStats = [
+    { label: '占事', value: settings.occupy?.trim() || '未填写' },
+    { label: '排盘类型', value: paiPanTypeLabel },
+    { label: '盘式', value: panTypeLabel },
+    { label: '日期类型', value: settings.dateType === 0 ? '公历' : '农历' },
+  ];
+  const configNotes = [
+    { label: '起局时刻', value: settings.date || '未设置' },
+    { label: '值使规则', value: zhiShiTypeLabel },
+    { label: '节气口径', value: settings.jieQiType === 1 ? '按分钟计算' : '按天计算' },
+    { label: '年柱口径', value: settings.yearGanZhiType === 2 ? '立春交接时刻' : settings.yearGanZhiType === 1 ? '立春当天' : '正月初一' },
+  ];
+  const outputItems = ['九宫盘面与天地人神', '值符值使与局数', '九星八门八神定位', '三奇六仪与宫位提示'];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-pink-50">
-      {/* 头部 */}
-      <header className="border-b border-orange-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="text-3xl">⚍</div>
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                  奇门遁甲排盘
-                </h1>
-                <p className="text-xs text-gray-500">帝王之学 · 运筹帷幄</p>
-              </div>
-            </Link>
-            <Link
-              href="/"
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white hover:shadow-lg transition-all"
-            >
-              返回首页
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          {/* 输入表单 */}
-          <Card
-            title="输入信息"
-            icon="📝"
-            className="mb-8 animate-fade-in"
-          >
+    <DossierPageLayout
+      title="奇门遁甲排盘"
+      hasResult={Boolean(result)}
+      rail={(
+        <Card
+          title="输入信息"
+          icon="📝"
+          className="animate-fade-in"
+        >
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* 姓名 */}
@@ -138,6 +187,7 @@ export default function QiMenPage() {
                 onChange={(value) => setSettings({ ...settings, date: value })}
                 dateType={settings.dateType}
                 helperText="格式：年-月-日 时:分:秒（例如：2024-01-01 08:30:00）"
+                pickerOnly
               />
 
               {/* 高级配置 */}
@@ -267,110 +317,150 @@ export default function QiMenPage() {
               </Button>
             </form>
           </Card>
+      )}
+      emptySidebar={(
+        <>
+          <WorkbenchPanel
+            eyebrow="当前配置"
+            title="起局工作台"
+            description="未起局时右侧直接显示当前盘式与关键规则，桌面端不会只剩空白结果区。"
+          >
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              {quickStats.map((item) => <WorkbenchStat key={item.label} label={item.label} value={item.value} />)}
+            </div>
+            <div className="mt-5 grid gap-3">
+              {configNotes.map((item) => (
+                <div key={item.label} className="flex items-start justify-between gap-4 rounded-[18px] border border-[#d8cab6] bg-white/72 px-4 py-3">
+                  <span className="text-xs uppercase tracking-[0.22em] text-[#8b6641]">{item.label}</span>
+                  <span className="text-right text-sm font-medium text-[#2f2118]">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </WorkbenchPanel>
 
-          {/* 排盘结果 */}
+          <WorkbenchPanel
+            eyebrow="起局输出"
+            title="提交后会展开这些内容"
+            description="结果区会直接进入九宫、值符值使与格局关系。"
+            tone="dark"
+          >
+            <div className="space-y-3">
+              {outputItems.map((item, index) => (
+                <div key={item} className="flex items-start gap-3 rounded-[18px] border border-white/12 bg-white/8 px-4 py-3">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/22 bg-white/10 text-xs font-semibold text-white">
+                    {index + 1}
+                  </span>
+                  <span className="text-sm leading-6 text-white/88">{item}</span>
+                </div>
+              ))}
+            </div>
+          </WorkbenchPanel>
+        </>
+      )}
+      stage={(
+        <>
           {result && (
             <div className="animate-fade-in space-y-8">
               {/* 基础信息卡片 */}
-              <div className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 rounded-2xl p-1 shadow-2xl">
-                <div className="bg-white rounded-xl p-6">
+              <div className="overflow-hidden rounded-[34px] border border-[#6b4524]/15 bg-[radial-gradient(circle_at_top_left,rgba(255,212,141,0.22),transparent_28%),linear-gradient(135deg,#2c1b12_0%,#573520_52%,#98612e_100%)] p-5 text-white shadow-[0_34px_72px_-38px_rgba(72,38,10,0.95)] sm:p-6">
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="space-y-6">
                   <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                    <h2 className="text-2xl font-bold tracking-[0.06em] text-white">
                       奇门遁甲局式
                     </h2>
-                    <p className="text-gray-500 text-sm mt-1">{result.juShu} · {result.yinYangDun}</p>
+                    <p className="mt-1 text-sm text-stone-200">{result.juShu} · {result.yinYangDun}</p>
                   </div>
 
                   {/* 核心信息展示 */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     {result.name && (
-                      <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-red-50 rounded-lg">
-                        <div className="text-xs text-gray-500 mb-1">姓名</div>
-                        <div className="font-semibold text-gray-800">{result.name}</div>
+                      <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                        <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">姓名</div>
+                        <div className="font-semibold text-white">{result.name}</div>
                       </div>
                     )}
                     {result.occupy && (
-                      <div className="text-center p-3 bg-gradient-to-br from-red-50 to-pink-50 rounded-lg">
-                        <div className="text-xs text-gray-500 mb-1">占事</div>
-                        <div className="font-semibold text-gray-800 truncate">{result.occupy}</div>
+                      <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                        <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">占事</div>
+                        <div className="break-words font-semibold leading-6 text-white">{result.occupy}</div>
                       </div>
                     )}
-                    <div className="text-center p-3 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg">
-                      <div className="text-xs text-gray-500 mb-1">公历</div>
-                      <div className="font-semibold text-gray-800">{result.solar}</div>
+                    <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                      <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">公历</div>
+                      <div className="font-semibold text-white">{result.solar}</div>
                     </div>
-                    <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-red-50 rounded-lg">
-                      <div className="text-xs text-gray-500 mb-1">农历</div>
-                      <div className="font-semibold text-gray-800">{result.lunar}</div>
+                    <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                      <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">农历</div>
+                      <div className="font-semibold text-white">{result.lunar}</div>
                     </div>
                   </div>
 
                   {/* 四柱干支 */}
                   {result.yearGanZhi && (
                     <div className="grid grid-cols-4 gap-3 mb-6">
-                      <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg">
-                        <div className="text-xs text-gray-500 mb-1">年柱</div>
-                        <div className="font-bold text-purple-600">{result.yearGanZhi}</div>
+                      <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                        <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">年柱</div>
+                        <div className="font-bold text-white">{result.yearGanZhi}</div>
                       </div>
-                      <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg">
-                        <div className="text-xs text-gray-500 mb-1">月柱</div>
-                        <div className="font-bold text-blue-600">{result.monthGanZhi}</div>
+                      <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                        <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">月柱</div>
+                        <div className="font-bold text-white">{result.monthGanZhi}</div>
                       </div>
-                      <div className="text-center p-3 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg">
-                        <div className="text-xs text-gray-500 mb-1">日柱</div>
-                        <div className="font-bold text-yellow-600">{result.dayGanZhi}</div>
+                      <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                        <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">日柱</div>
+                        <div className="font-bold text-white">{result.dayGanZhi}</div>
                       </div>
-                      <div className="text-center p-3 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg">
-                        <div className="text-xs text-gray-500 mb-1">时柱</div>
-                        <div className="font-bold text-indigo-600">{result.hourGanZhi}</div>
+                      <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                        <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">时柱</div>
+                        <div className="font-bold text-white">{result.hourGanZhi}</div>
                       </div>
                     </div>
                   )}
 
                   {/* 奇门要素 */}
                   <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                    <div className="text-center p-3 bg-gradient-to-br from-red-50 to-orange-50 rounded-lg border border-orange-200">
-                      <div className="text-xs text-gray-500 mb-1">符头</div>
-                      <div className="font-bold text-orange-600">{result.fuTou}</div>
+                    <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                      <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">符头</div>
+                      <div className="font-bold text-white">{result.fuTou}</div>
                     </div>
-                    <div className="text-center p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                      <div className="text-xs text-gray-500 mb-1">节气</div>
-                      <div className="font-bold text-green-600">{result.jieQi}</div>
+                    <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                      <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">节气</div>
+                      <div className="font-bold text-white">{result.jieQi}</div>
                     </div>
                     {result.sanYuan && (
-                      <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
-                        <div className="text-xs text-gray-500 mb-1">三元</div>
-                        <div className="font-bold text-blue-600">{result.sanYuan}</div>
+                      <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                        <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">三元</div>
+                        <div className="font-bold text-white">{result.sanYuan}</div>
                       </div>
                     )}
-                    <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-                      <div className="text-xs text-gray-500 mb-1">阴阳遁</div>
-                      <div className="font-bold text-purple-600">{result.yinYangDun}</div>
+                    <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                      <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">阴阳遁</div>
+                      <div className="font-bold text-white">{result.yinYangDun}</div>
                     </div>
-                    <div className="text-center p-3 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
-                      <div className="text-xs text-gray-500 mb-1">局数</div>
-                      <div className="font-bold text-yellow-600">{result.juShu}</div>
+                    <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                      <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">局数</div>
+                      <div className="font-bold text-white">{result.juShu}</div>
                     </div>
-                    <div className="text-center p-3 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
-                      <div className="text-xs text-gray-500 mb-1">旬首</div>
-                      <div className="font-bold text-indigo-600">{result.xunShou}</div>
+                    <div className="rounded-[18px] border border-white/10 bg-white/8 p-3 text-center">
+                      <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-stone-300">旬首</div>
+                      <div className="font-bold text-white">{result.xunShou}</div>
                     </div>
                   </div>
-
-                  {/* 值符值使 */}
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="p-4 bg-gradient-to-br from-orange-100 to-red-100 rounded-xl border-2 border-orange-300 text-center">
-                      <div className="text-sm text-orange-700 mb-1">值符</div>
-                      <div className="text-2xl font-bold text-orange-600">{result.zhiFu}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-[24px] border border-white/10 bg-white/10 p-5 text-center">
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-stone-300">值符</div>
+                      <div className="mt-3 text-3xl font-bold text-white">{result.zhiFu}</div>
                       {result.newZhiFuGongWei !== undefined && (
-                        <div className="text-xs text-orange-500 mt-1">落 {result.newZhiFuGongWei}宫</div>
+                        <div className="mt-2 text-xs text-stone-200">落 {result.newZhiFuGongWei}宫</div>
                       )}
                     </div>
-                    <div className="p-4 bg-gradient-to-br from-red-100 to-pink-100 rounded-xl border-2 border-red-300 text-center">
-                      <div className="text-sm text-red-700 mb-1">值使</div>
-                      <div className="text-2xl font-bold text-red-600">{result.zhiShi}</div>
+                    <div className="rounded-[24px] border border-white/10 bg-white/10 p-5 text-center">
+                      <div className="text-[11px] uppercase tracking-[0.22em] text-stone-300">值使</div>
+                      <div className="mt-3 text-3xl font-bold text-white">{result.zhiShi}</div>
                       {result.newZhiShiGongWei !== undefined && (
-                        <div className="text-xs text-red-500 mt-1">落 {result.newZhiShiGongWei}宫</div>
+                        <div className="mt-2 text-xs text-stone-200">落 {result.newZhiShiGongWei}宫</div>
                       )}
                     </div>
                   </div>
@@ -380,78 +470,74 @@ export default function QiMenPage() {
               {/* 传统文化装饰标题 */}
               <div className="text-center">
                 <div className="inline-flex items-center gap-4">
-                  <div className="h-px w-16 bg-gradient-to-r from-transparent to-orange-500"></div>
-                  <h3 className="text-xl font-bold text-gray-800 px-4">
-                    <span className="bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                      九宫星门神格局
-                    </span>
-                  </h3>
-                  <div className="h-px w-16 bg-gradient-to-l from-transparent to-red-500"></div>
+                  <div className="h-px w-16 bg-gradient-to-r from-transparent to-[#9a6a3a]"></div>
+                  <h3 className="px-4 text-xl font-bold tracking-[0.06em] text-[#3a281a]">九宫星门神格局</h3>
+                  <div className="h-px w-16 bg-gradient-to-l from-transparent to-[#9a6a3a]"></div>
                 </div>
-                <p className="text-sm text-gray-500 mt-2">上天下地 中分八卦 · 阴阳动静 吉凶分明</p>
+                <p className="mt-2 text-sm text-[#7b6b5f]">上天下地 中分八卦 · 阴阳动静 吉凶分明</p>
               </div>
 
               {/* 精美九宫格 */}
-              <div className="bg-gradient-to-br from-orange-100 via-red-50 to-pink-100 rounded-3xl p-8 shadow-2xl border-4 border-orange-200">
+              <div className="rounded-[32px] border border-[rgba(114,76,37,0.12)] bg-[rgba(255,250,242,0.84)] p-6 shadow-[0_30px_60px_-36px_rgba(61,37,15,0.48)] backdrop-blur-xl">
                 {/* 九宫外框装饰 */}
                 <div className="relative">
                   {/* 四个角的装饰 */}
-                  <div className="absolute -top-2 -left-2 w-8 h-8 border-t-4 border-l-4 border-orange-500 rounded-tl-lg"></div>
-                  <div className="absolute -top-2 -right-2 w-8 h-8 border-t-4 border-r-4 border-red-500 rounded-tr-lg"></div>
-                  <div className="absolute -bottom-2 -left-2 w-8 h-8 border-b-4 border-l-4 border-red-500 rounded-bl-lg"></div>
-                  <div className="absolute -bottom-2 -right-2 w-8 h-8 border-b-4 border-r-4 border-orange-500 rounded-br-lg"></div>
+                  <div className="absolute -top-2 -left-2 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-[#8f5b2d]"></div>
+                  <div className="absolute -top-2 -right-2 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-[#8f5b2d]"></div>
+                  <div className="absolute -bottom-2 -left-2 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-[#8f5b2d]"></div>
+                  <div className="absolute -bottom-2 -right-2 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-[#8f5b2d]"></div>
 
                   <div className="grid grid-cols-3 gap-3">
                     {/* 巽四宫 - 震三宫 - 坤二宫 */}
                     {[
-                      { gong: '巽四宫', index: 0, bagua: '☴', wuxing: '木', color: 'from-green-400 to-emerald-500' },
-                      { gong: '离九宫', index: 1, bagua: '☲', wuxing: '火', color: 'from-red-400 to-orange-500' },
-                      { gong: '坤二宫', index: 2, bagua: '☷', wuxing: '土', color: 'from-yellow-400 to-amber-500' },
-                      { gong: '震三宫', index: 3, bagua: '☳', wuxing: '木', color: 'from-green-500 to-teal-500' },
-                      { gong: '中五宫', index: 4, bagua: '☯', wuxing: '土', color: 'from-yellow-500 to-orange-500' },
-                      { gong: '兑七宫', index: 5, bagua: '☱', wuxing: '金', color: 'from-gray-400 to-zinc-500' },
-                      { gong: '坎一宫', index: 6, bagua: '☵', wuxing: '水', color: 'from-blue-400 to-cyan-500' },
-                      { gong: '艮八宫', index: 7, bagua: '☶', wuxing: '土', color: 'from-amber-500 to-brown-500' },
-                      { gong: '乾六宫', index: 8, bagua: '☰', wuxing: '金', color: 'from-orange-400 to-red-500' }
+                      { gong: '巽四宫', index: 0, bagua: '☴', wuxing: '木', tone: 'from-[#edf6ef] to-[#e2f1e4]' },
+                      { gong: '离九宫', index: 1, bagua: '☲', wuxing: '火', tone: 'from-[#fbefea] to-[#f9e6dc]' },
+                      { gong: '坤二宫', index: 2, bagua: '☷', wuxing: '土', tone: 'from-[#f7f0e1] to-[#f1e4c8]' },
+                      { gong: '震三宫', index: 3, bagua: '☳', wuxing: '木', tone: 'from-[#eef5ea] to-[#e2ecdc]' },
+                      { gong: '中五宫', index: 4, bagua: '☯', wuxing: '土', tone: 'from-[#f5ead9] to-[#ecd8b8]' },
+                      { gong: '兑七宫', index: 5, bagua: '☱', wuxing: '金', tone: 'from-[#f1f0ed] to-[#e0ddd4]' },
+                      { gong: '坎一宫', index: 6, bagua: '☵', wuxing: '水', tone: 'from-[#ebf3f8] to-[#dceaf2]' },
+                      { gong: '艮八宫', index: 7, bagua: '☶', wuxing: '土', tone: 'from-[#f6ecdf] to-[#eddcc0]' },
+                      { gong: '乾六宫', index: 8, bagua: '☰', wuxing: '金', tone: 'from-[#f4ede7] to-[#ebddd0]' }
                     ].map((item, idx) => (
                       <div
                         key={idx}
-                        className={`relative p-4 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br ${item.color} text-white`}
+                        className={`relative rounded-[24px] border border-[rgba(114,76,37,0.12)] bg-gradient-to-br ${item.tone} p-4 text-[#2f2118] shadow-[0_20px_40px_-30px_rgba(61,37,15,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_28px_50px_-34px_rgba(61,37,15,0.45)]`}
                       >
                         {/* 宫位标识 */}
-                        <div className="absolute -top-2 -left-2 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-xs font-bold backdrop-blur-sm">
+                        <div className="absolute -left-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(114,76,37,0.12)] bg-white/80 text-xs font-bold shadow-sm">
                           {item.bagua}
                         </div>
 
                         {/* 宫位名称 */}
                         <div className="text-center mb-3 mt-2">
-                          <div className="text-xs opacity-80">{item.wuxing}</div>
+                          <div className="text-xs text-[#7b6b5f]">{item.wuxing}</div>
                           <div className="font-bold text-lg">{item.gong}</div>
                         </div>
 
                         {/* 天地人神四层 */}
                         <div className="space-y-1.5 text-center">
                           {/* 天盘九星 */}
-                          <div className="bg-white/20 rounded-lg py-1.5 px-2 backdrop-blur-sm">
-                            <div className="text-[10px] opacity-70">天盘</div>
+                          <div className="rounded-[16px] border border-[rgba(114,76,37,0.1)] bg-white/75 px-2 py-1.5 backdrop-blur-sm">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-[#8a6239]">天盘</div>
                             <div className="font-bold text-sm">{result.tianPan[item.index]}</div>
                           </div>
 
                           {/* 神盘八神 */}
-                          <div className="bg-white/15 rounded-lg py-1 px-2 backdrop-blur-sm">
-                            <div className="text-[10px] opacity-70">神盘</div>
+                          <div className="rounded-[16px] border border-[rgba(114,76,37,0.1)] bg-white/72 px-2 py-1 backdrop-blur-sm">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-[#8a6239]">神盘</div>
                             <div className="font-semibold text-sm">{result.shenPan[item.index]}</div>
                           </div>
 
                           {/* 人盘八门 */}
-                          <div className="bg-white/15 rounded-lg py-1 px-2 backdrop-blur-sm">
-                            <div className="text-[10px] opacity-70">人盘</div>
+                          <div className="rounded-[16px] border border-[rgba(114,76,37,0.1)] bg-white/72 px-2 py-1 backdrop-blur-sm">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-[#8a6239]">人盘</div>
                             <div className="font-semibold text-sm">{result.renPan[item.index]}</div>
                           </div>
 
                           {/* 地盘奇仪 */}
-                          <div className="bg-white/25 rounded-lg py-1.5 px-2 backdrop-blur-sm border border-white/30">
-                            <div className="text-[10px] opacity-70">地盘</div>
+                          <div className="rounded-[16px] border border-[rgba(114,76,37,0.12)] bg-white/82 px-2 py-1.5 backdrop-blur-sm">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-[#8a6239]">地盘</div>
                             <div className="font-bold text-base">{result.diPan[item.index]}</div>
                           </div>
                         </div>
@@ -460,9 +546,9 @@ export default function QiMenPage() {
                         {(result.jiXing?.includes(item.index.toString()) || result.xiongXing?.includes(item.index.toString())) && (
                           <div className="absolute top-2 right-2">
                             {result.jiXing?.includes(item.index.toString()) ? (
-                              <span className="text-xs bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full font-bold">吉</span>
+                              <span className="rounded-full bg-[#efe4b8] px-1.5 py-0.5 text-xs font-bold text-[#7a5a13]">吉</span>
                             ) : (
-                              <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold">凶</span>
+                              <span className="rounded-full bg-[#c86c57] px-1.5 py-0.5 text-xs font-bold text-white">凶</span>
                             )}
                           </div>
                         )}
@@ -475,20 +561,19 @@ export default function QiMenPage() {
               {/* 星门神详情 */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* 九星 */}
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-green-200 shadow-lg">
-                  <h4 className="text-lg font-bold text-green-700 mb-4 flex items-center gap-2">
+                <div className="rounded-[28px] border border-[rgba(114,76,37,0.12)] bg-[rgba(255,250,242,0.84)] p-6 shadow-[0_24px_48px_-34px_rgba(61,37,15,0.42)]">
+                  <h4 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#3a281a]">
                     <span className="text-2xl">⭐</span>
                     九星
                   </h4>
                   <div className="space-y-2">
-                    {['天蓬', '天任', '天冲', '天辅', '天禽', '天心', '天柱', '天任', '天英'].map((star, idx) => {
-                      const starIdx = [0, 7, 1, 3, 4, 5, 6, 7, 2][idx];
+                    {['天蓬', '天芮', '天冲', '天辅', '天禽', '天心', '天柱', '天任', '天英'].map((star, idx) => {
                       const foundInPan = result.tianPan.findIndex(s => s === star);
                       return (
-                        <div key={star} className="flex justify-between items-center p-2 bg-white/60 rounded-lg">
-                          <span className="font-semibold text-gray-700">{star}</span>
+                        <div key={`${star}-${idx}`} className="flex items-center justify-between rounded-[16px] border border-[rgba(114,76,37,0.1)] bg-white/78 p-2">
+                          <span className="font-semibold text-[#3a281a]">{star}</span>
                           {foundInPan !== -1 && (
-                            <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">
+                            <span className="rounded-full bg-[#5f775f] px-2 py-0.5 text-xs text-white">
                               {['巽四', '坎一', '离九', '巽四', '中五', '乾六', '坎一', '艮八', '离九'][foundInPan]}宫
                             </span>
                           )}
@@ -499,19 +584,19 @@ export default function QiMenPage() {
                 </div>
 
                 {/* 八门 */}
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg">
-                  <h4 className="text-lg font-bold text-blue-700 mb-4 flex items-center gap-2">
+                <div className="rounded-[28px] border border-[rgba(114,76,37,0.12)] bg-[rgba(255,250,242,0.84)] p-6 shadow-[0_24px_48px_-34px_rgba(61,37,15,0.42)]">
+                  <h4 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#3a281a]">
                     <span className="text-2xl">🚪</span>
                     八门
                   </h4>
                   <div className="space-y-2">
-                    {['休', '生', '伤', '杜', '景', '死', '惊', '开'].map((men, idx) => {
+                    {['休', '生', '伤', '杜', '景', '死', '惊', '开'].map((men) => {
                       const foundInPan = result.renPan.findIndex(s => s === men);
                       return (
-                        <div key={men} className="flex justify-between items-center p-2 bg-white/60 rounded-lg">
-                          <span className="font-semibold text-gray-700">{men}门</span>
+                        <div key={men} className="flex items-center justify-between rounded-[16px] border border-[rgba(114,76,37,0.1)] bg-white/78 p-2">
+                          <span className="font-semibold text-[#3a281a]">{men}门</span>
                           {foundInPan !== -1 && (
-                            <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                            <span className="rounded-full bg-[#496e8d] px-2 py-0.5 text-xs text-white">
                               {['巽四', '坎一', '震三', '巽四', '离九', '坤二', '兑七', '乾六'][foundInPan]}宫
                             </span>
                           )}
@@ -522,19 +607,19 @@ export default function QiMenPage() {
                 </div>
 
                 {/* 八神 */}
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg">
-                  <h4 className="text-lg font-bold text-purple-700 mb-4 flex items-center gap-2">
+                <div className="rounded-[28px] border border-[rgba(114,76,37,0.12)] bg-[rgba(255,250,242,0.84)] p-6 shadow-[0_24px_48px_-34px_rgba(61,37,15,0.42)]">
+                  <h4 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#3a281a]">
                     <span className="text-2xl">🔯</span>
                     八神
                   </h4>
                   <div className="space-y-2">
-                    {['值符', '螣蛇', '太阴', '六合', '白虎', '玄武', '九地', '九天'].map((shen, idx) => {
+                    {['值符', '螣蛇', '太阴', '六合', '白虎', '玄武', '九地', '九天'].map((shen) => {
                       const foundInPan = result.shenPan.findIndex(s => s === shen);
                       return (
-                        <div key={shen} className="flex justify-between items-center p-2 bg-white/60 rounded-lg">
-                          <span className="font-semibold text-gray-700">{shen}</span>
+                        <div key={shen} className="flex items-center justify-between rounded-[16px] border border-[rgba(114,76,37,0.1)] bg-white/78 p-2">
+                          <span className="font-semibold text-[#3a281a]">{shen}</span>
                           {foundInPan !== -1 && (
-                            <span className="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">
+                            <span className="rounded-full bg-[#7f6488] px-2 py-0.5 text-xs text-white">
                               {['巽四', '坎一', '离九', '巽四', '坤二', '兑七', '艮八', '乾六'][foundInPan]}宫
                             </span>
                           )}
@@ -546,26 +631,26 @@ export default function QiMenPage() {
               </div>
 
               {/* 三奇六仪 */}
-              <div className="bg-gradient-to-r from-yellow-50 via-orange-50 to-red-50 rounded-2xl p-6 border-2 border-orange-200 shadow-lg">
-                <h4 className="text-lg font-bold text-orange-700 mb-4 flex items-center gap-2">
+              <div className="rounded-[28px] border border-[rgba(114,76,37,0.12)] bg-[rgba(255,250,242,0.84)] p-6 shadow-[0_24px_48px_-34px_rgba(61,37,15,0.42)]">
+                <h4 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#3a281a]">
                   <span className="text-2xl">⚡</span>
                   三奇六仪（地盘）
                 </h4>
                 <div className="flex flex-wrap justify-center gap-3">
-                  {['戊', '己', '庚', '辛', '壬', '癸', '丁', '丙', '乙'].map((yi, idx) => {
+                  {['戊', '己', '庚', '辛', '壬', '癸', '丁', '丙', '乙'].map((yi) => {
                     const foundIdx = result.diPan.findIndex(d => d === yi);
                     return (
                       <div
                         key={yi}
-                        className={`w-16 h-16 rounded-xl flex flex-col items-center justify-center shadow-md ${
-                          ['三奇', '六仪'].includes(yi === '丁' || yi === '丙' || yi === '乙' ? '三奇' : '六仪')
-                            ? 'bg-gradient-to-br from-yellow-400 to-orange-500'
-                            : 'bg-gradient-to-br from-gray-200 to-gray-300'
-                        } ${['丁', '丙', '乙'].includes(yi) ? 'ring-2 ring-yellow-400' : ''}`}
+                        className={`flex h-16 w-16 flex-col items-center justify-center rounded-[20px] border border-[rgba(114,76,37,0.12)] shadow-sm ${
+                          ['丁', '丙', '乙'].includes(yi)
+                            ? 'bg-gradient-to-br from-[#f3deb6] to-[#e6c987] ring-2 ring-[#d7b07d]'
+                            : 'bg-gradient-to-br from-[#ece9e2] to-[#dad4c9]'
+                        }`}
                       >
-                        <span className="text-2xl font-bold text-gray-800">{yi}</span>
+                        <span className="text-2xl font-bold text-[#2f2118]">{yi}</span>
                         {foundIdx !== -1 && (
-                          <span className="text-[10px] text-gray-600">
+                          <span className="text-[10px] text-[#6b5a4c]">
                             {['巽四', '坎一', '离九', '坤二', '震三', '中五', '兑七', '艮八', '乾六'][foundIdx]}
                           </span>
                         )}
@@ -573,19 +658,19 @@ export default function QiMenPage() {
                     );
                   })}
                 </div>
-                <div className="text-center mt-4 text-sm text-gray-600">
-                  <span className="inline-block px-3 py-1 bg-yellow-400/30 rounded-full mr-2">三奇：丁丙乙</span>
-                  <span className="inline-block px-3 py-1 bg-gray-300/50 rounded-full">六仪：戊己庚辛壬癸</span>
+                <div className="mt-4 text-center text-sm text-[#6b5a4c]">
+                  <span className="mr-2 inline-block rounded-full bg-[#f4e4c8] px-3 py-1">三奇：丁丙乙</span>
+                  <span className="inline-block rounded-full bg-[#e7dfd2] px-3 py-1">六仪：戊己庚辛壬癸</span>
                 </div>
               </div>
 
               {/* 说明 */}
-              <div className="p-6 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-orange-200">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <div className="rounded-[28px] border border-[rgba(114,76,37,0.12)] bg-[rgba(255,250,242,0.84)] p-6 shadow-[0_24px_48px_-34px_rgba(61,37,15,0.42)]">
+                <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold text-[#3a281a]">
                   <span>📖</span>
                   奇门遁甲说明
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
+                <div className="grid grid-cols-1 gap-3 text-sm text-[#5d4732] md:grid-cols-2">
                   <div className="flex items-start gap-2">
                     <Badge variant="info" size="sm">地盘</Badge>
                     <span>三奇六仪（戊己庚辛壬癸丁丙乙）</span>
@@ -615,11 +700,9 @@ export default function QiMenPage() {
               </div>
             </div>
           )}
-        </div>
-      </main>
-
-      {/* AI助手 */}
-      {result && <AIAssistant system="qimen" chartData={result} />}
-    </div>
+        </>
+      )}
+      footer={result && <AIAssistant system="qimen" chartData={result} />}
+    />
   );
 }

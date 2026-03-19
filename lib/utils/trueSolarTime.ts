@@ -3,23 +3,6 @@
  * 用于根据地理经度调整时间
  */
 
-// 时间修正表（简化版）- 每月15日的修正值（分钟）
-// 完整版应该是12个月×31天的修正表，这里使用简化算法
-const TIME_CORRECTION_TABLE: { [key: number]: number } = {
-  1: -3,   // 1月
-  2: -14,  // 2月
-  3: -8,   // 3月
-  4: 1,    // 4月
-  5: 4,    // 5月
-  6: 2,    // 6月
-  7: -4,   // 7月
-  8: -6,   // 8月
-  9: 0,    // 9月
-  10: 10,  // 10月
-  11: 16,  // 11月
-  12: 2    // 12月
-};
-
 // 中国主要城市经度数据（东经）
 export const CITY_LONGITUDE: { [key: string]: number } = {
   // 直辖市
@@ -210,19 +193,7 @@ export const CITY_LONGITUDE: { [key: string]: number } = {
  * @returns 调整后的真太阳时
  */
 export function calculateTrueSolarTime(date: Date, longitude: number): Date {
-  // 中国标准时间使用东经120度的时间
-  // 平太阳时时差 = (当地经度 - 120) × 4分钟
-  const offset = (longitude - 120) * 4;
-
-  // 获取月份用于时间修正
-  const month = date.getMonth() + 1;
-  const correction = TIME_CORRECTION_TABLE[month] || 0;
-
-  // 总时差 = 平太阳时时差 + 时间修正
-  const totalOffset = offset + correction;
-
-  // 返回调整后的时间
-  return new Date(date.getTime() + totalOffset * 60 * 1000);
+  return calculateTrueSolarTimeAccurate(date, longitude);
 }
 
 /**
@@ -235,7 +206,7 @@ export function calculateTrueSolarTimeAccurate(date: Date, longitude: number): D
   // 平太阳时时差
   const offset = (longitude - 120) * 4;
 
-  // 计算时间修正（使用简化的均时差公式）
+  // 结合均时差与经度差，按常用天文近似公式修正为真太阳时
   const dayOfYear = getDayOfYear(date);
   const correction = calculateEquationOfTime(dayOfYear);
 
@@ -256,12 +227,12 @@ function getDayOfYear(date: Date): number {
 }
 
 /**
- * 计算均时差（简化公式）
+ * 计算均时差（分钟）
  * @param dayOfYear 一年中的第几天
  * @returns 均时差（分钟）
  */
 function calculateEquationOfTime(dayOfYear: number): number {
-  // 简化的均时差公式
+  // 常用均时差近似公式，精度足以覆盖排盘场景中的分钟级修正
   const B = (360 / 365) * (dayOfYear - 81) * (Math.PI / 180);
   const E = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
   return E;
@@ -273,7 +244,8 @@ function calculateEquationOfTime(dayOfYear: number): number {
  * @returns 经度，如果城市不存在则返回null
  */
 export function getLongitudeByCity(city: string): number | null {
-  return CITY_LONGITUDE[city] || null;
+  const normalizedCity = city.trim().replace(/市$/, '');
+  return CITY_LONGITUDE[normalizedCity] || null;
 }
 
 /**
@@ -295,5 +267,5 @@ export function calculateTrueSolarTimeByCity(date: Date, city: string): Date {
   if (longitude === null) {
     return date;
   }
-  return calculateTrueSolarTime(date, longitude);
+  return calculateTrueSolarTimeAccurate(date, longitude);
 }

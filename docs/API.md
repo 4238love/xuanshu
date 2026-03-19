@@ -389,7 +389,7 @@ const result: QiMenResult = createQiMenPaiPan(settings: QiMenSettings);
 
 | 参数名 | 类型 | 必填 | 默认值 | 说明 |
 |--------|------|------|--------|------|
-| panType | 'zhuan' \| 'fei' | 否 | 'zhuan' | 盘类型(转盘/飞盘) |
+| panType | 'zhuan' \| 'fei' | 否 | 'zhuan' | 盘类型(当前仅实现转盘，传 `fei` 会报错) |
 | paiPanType | 0-3 | 否 | 3 | 排盘类型(0:年家, 1:月家, 2:日家, 3:时家) |
 | zhiShiType | 0-2 | 否 | 1 | 值使类型 |
 | yueJiaQiJuType | 0 \| 1 | 否 | 0 | 月家奇门起局类型 |
@@ -494,4 +494,3 @@ import type {
   // ... 其他类型
 } from '@/types';
 ```
-

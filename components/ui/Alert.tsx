@@ -47,7 +47,10 @@ export const Alert: React.FC<AlertProps> = ({
   const style = typeStyles[type];
 
   return (
-    <div className={`${style.bg} ${style.border} border rounded-lg p-4 ${className}`}>
+    <div
+      className={`${style.bg} ${style.border} border rounded-lg p-4 ${className}`}
+      role={type === 'error' || type === 'warning' ? 'alert' : 'status'}
+    >
       <div className="flex items-start gap-3">
         <span className="text-xl flex-shrink-0">{icon || style.icon}</span>
         <div className="flex-1">
@@ -59,6 +62,7 @@ export const Alert: React.FC<AlertProps> = ({
         {onClose && (
           <button
             onClick={onClose}
+            aria-label="关闭提示"
             className={`${style.text} hover:opacity-70 transition-opacity flex-shrink-0`}
           >
             ✕

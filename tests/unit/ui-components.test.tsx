@@ -1,216 +1,187 @@
-/**
- * UI组件测试
- * 测试可复用UI组件的功能和样式
- */
-
 import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Alert } from '../../components/ui/Alert';
+import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card, InfoCard } from '../../components/ui/Card';
+import { DateTimePicker, Select } from '../../components/ui/FormControls';
 import { Input, RadioGroup } from '../../components/ui/Input';
-import { Badge } from '../../components/ui/Badge';
-import { Alert } from '../../components/ui/Alert';
 
-describe('UI组件测试', () => {
-  describe('Button组件', () => {
-    test('渲染基础按钮', () => {
-      const button = <Button>点击</Button>;
-      expect(button).toBeDefined();
-      expect(button.props.children).toBe('点击');
-    });
+function extract(markup: string, pattern: RegExp): string {
+  const match = markup.match(pattern);
+  expect(match).not.toBeNull();
+  return match![1];
+}
 
-    test('不同变体', () => {
-      const variants = ['primary', 'secondary', 'danger', 'success'] as const;
-      variants.forEach(variant => {
-        const button = <Button variant={variant}>按钮</Button>;
-        expect(button.props.variant).toBe(variant);
-      });
-    });
+describe('UI 组件测试', () => {
+  describe('Button', () => {
+    test('渲染加载态和宽度类名', () => {
+      const markup = renderToStaticMarkup(
+        <Button loading fullWidth>
+          提交
+        </Button>
+      );
 
-    test('不同尺寸', () => {
-      const sizes = ['sm', 'md', 'lg'] as const;
-      sizes.forEach(size => {
-        const button = <Button size={size}>按钮</Button>;
-        expect(button.props.size).toBe(size);
-      });
-    });
-
-    test('加载状态', () => {
-      const button = <Button loading={true}>加载中</Button>;
-      expect(button.props.loading).toBe(true);
-    });
-
-    test('禁用状态', () => {
-      const button = <Button disabled={true}>禁用</Button>;
-      expect(button.props.disabled).toBe(true);
-    });
-
-    test('全宽按钮', () => {
-      const button = <Button fullWidth={true}>全宽</Button>;
-      expect(button.props.fullWidth).toBe(true);
-    });
-
-    test('自定义渐变', () => {
-      const gradient = 'from-blue-500 to-cyan-500';
-      const button = <Button gradient={gradient}>渐变</Button>;
-      expect(button.props.gradient).toBe(gradient);
+      expect(markup).toContain('w-full');
+      expect(markup).toContain('disabled=""');
+      expect(markup).toContain('animate-spin');
+      expect(markup).toContain('提交');
     });
   });
 
-  describe('Card组件', () => {
-    test('渲染基础卡片', () => {
-      const card = <Card>内容</Card>;
-      expect(card).toBeDefined();
-      expect(card.props.children).toBe('内容');
-    });
+  describe('Card / Badge / InfoCard', () => {
+    test('渲染标题、图标和渐变样式', () => {
+      const cardMarkup = renderToStaticMarkup(
+        <Card title="结果摘要" icon="命" gradient="from-stone-900 to-amber-700">
+          内容
+        </Card>
+      );
 
-    test('带标题的卡片', () => {
-      const card = <Card title="标题">内容</Card>;
-      expect(card.props.title).toBe('标题');
-    });
+      expect(cardMarkup).toContain('结果摘要');
+      expect(cardMarkup).toContain('命');
+      expect(cardMarkup).toContain('from-stone-900 to-amber-700');
 
-    test('带图标的卡片', () => {
-      const card = <Card title="标题" icon="📝">内容</Card>;
-      expect(card.props.icon).toBe('📝');
-    });
+      const badgeMarkup = renderToStaticMarkup(<Badge variant="warning">偏弱</Badge>);
+      expect(badgeMarkup).toContain('bg-amber-50');
+      expect(badgeMarkup).toContain('border-amber-200');
+      expect(badgeMarkup).toContain('偏弱');
 
-    test('带渐变的卡片', () => {
-      const gradient = 'from-purple-500 to-pink-500';
-      const card = <Card gradient={gradient}>内容</Card>;
-      expect(card.props.gradient).toBe(gradient);
-    });
-  });
-
-  describe('InfoCard组件', () => {
-    test('渲染信息卡片', () => {
-      const card = <InfoCard label="标签" value="值" />;
-      expect(card.props.label).toBe('标签');
-      expect(card.props.value).toBe('值');
-    });
-
-    test('带颜色的信息卡片', () => {
-      const color = 'from-blue-50 to-cyan-50';
-      const card = <InfoCard label="标签" value="值" color={color} />;
-      expect(card.props.color).toBe(color);
-    });
-
-    test('带图标的信息卡片', () => {
-      const card = <InfoCard label="标签" value="值" icon="🎯" />;
-      expect(card.props.icon).toBe('🎯');
+      const infoCardMarkup = renderToStaticMarkup(
+        <InfoCard label="起运岁数" value={6} icon="运" color="from-amber-50 to-orange-50" />
+      );
+      expect(infoCardMarkup).toContain('起运岁数');
+      expect(infoCardMarkup).toContain('6');
+      expect(infoCardMarkup).toContain('from-amber-50 to-orange-50');
     });
   });
 
-  describe('Input组件', () => {
-    test('渲染基础输入框', () => {
-      const input = <Input />;
-      expect(input).toBeDefined();
+  describe('Input', () => {
+    test('label、input、error 能正确关联', () => {
+      const markup = renderToStaticMarkup(
+        <Input label="姓名" error="必填" fullWidth />
+      );
+
+      const inputId = extract(markup, /<input[^>]*\sid="([^"]+)"/);
+      expect(markup).toContain(`<label for="${inputId}"`);
+      expect(markup).toContain('aria-invalid="true"');
+      expect(markup).toContain(`aria-describedby="${inputId}-error"`);
+      expect(markup).toContain(`id="${inputId}-error"`);
+      expect(markup).toContain('role="alert"');
     });
 
-    test('带标签的输入框', () => {
-      const input = <Input label="姓名" />;
-      expect(input.props.label).toBe('姓名');
-    });
+    test('helperText 走 aria-describedby', () => {
+      const markup = renderToStaticMarkup(
+        <Input label="城市" helperText="用于真太阳时修正" />
+      );
 
-    test('带错误提示的输入框', () => {
-      const input = <Input error="错误信息" />;
-      expect(input.props.error).toBe('错误信息');
-    });
-
-    test('带帮助文本的输入框', () => {
-      const input = <Input helperText="帮助文本" />;
-      expect(input.props.helperText).toBe('帮助文本');
-    });
-
-    test('全宽输入框', () => {
-      const input = <Input fullWidth={true} />;
-      expect(input.props.fullWidth).toBe(true);
+      const inputId = extract(markup, /<input[^>]*\sid="([^"]+)"/);
+      expect(markup).toContain(`<label for="${inputId}"`);
+      expect(markup).toContain(`aria-describedby="${inputId}-helper"`);
+      expect(markup).toContain(`id="${inputId}-helper"`);
     });
   });
 
-  describe('RadioGroup组件', () => {
-    test('渲染单选组', () => {
-      const options = [
-        { label: '选项1', value: 1 },
-        { label: '选项2', value: 2 }
-      ];
-      const radioGroup = (
+  describe('RadioGroup', () => {
+    test('使用 fieldset/legend 并暴露 radiogroup 语义', () => {
+      const markup = renderToStaticMarkup(
         <RadioGroup
-          name="test"
-          options={options}
+          label="性别"
+          name="sex"
           value={1}
           onChange={() => {}}
+          helperText="用于起运顺逆"
+          options={[
+            { label: '男命', value: 1 },
+            { label: '女命', value: 0 },
+          ]}
         />
       );
-      expect(radioGroup.props.options).toHaveLength(2);
+
+      const legendId = extract(markup, /<legend id="([^"]+)"/);
+      expect(markup).toContain('<fieldset');
+      expect(markup).toContain('性别');
+      expect(markup).toContain(`role="radiogroup" aria-labelledby="${legendId}"`);
+      expect(markup).toContain('name="sex"');
+      expect(markup).toContain('type="radio"');
+      expect(markup).toContain('女命');
     });
 
-    test('带标签的单选组', () => {
-      const options = [{ label: '选项', value: 1 }];
-      const radioGroup = (
+    test('error 信息会绑定到 fieldset', () => {
+      const markup = renderToStaticMarkup(
         <RadioGroup
-          label="选择"
-          name="test"
-          options={options}
-          value={1}
+          label="日期类型"
+          name="dateType"
+          value={0}
           onChange={() => {}}
+          error="请选择有效日期类型"
+          options={[
+            { label: '公历', value: 0 },
+            { label: '农历', value: 1 },
+          ]}
         />
       );
-      expect(radioGroup.props.label).toBe('选择');
+
+      const errorId = extract(markup, /<p id="([^"]+-error)"[^>]*role="alert"/);
+      expect(markup).toContain('aria-invalid="true"');
+      expect(markup).toContain(`aria-describedby="${errorId}"`);
     });
   });
 
-  describe('Badge组件', () => {
-    test('渲染基础徽章', () => {
-      const badge = <Badge>标签</Badge>;
-      expect(badge).toBeDefined();
-      expect(badge.props.children).toBe('标签');
+  describe('Select / DateTimePicker', () => {
+    test('Select 具备 label 与错误描述关联', () => {
+      const markup = renderToStaticMarkup(
+        <Select
+          label="排盘类型"
+          value={3}
+          onChange={() => {}}
+          error="请选择排盘类型"
+          options={[
+            { label: '时家奇门', value: 3 },
+            { label: '日家奇门', value: 2 },
+          ]}
+        />
+      );
+
+      const selectId = extract(markup, /<select id="([^"]+)"/);
+      expect(markup).toContain(`<label for="${selectId}"`);
+      expect(markup).toContain('aria-invalid="true"');
+      expect(markup).toContain(`aria-describedby="${selectId}-error"`);
     });
 
-    test('不同变体', () => {
-      const variants = ['default', 'success', 'warning', 'danger', 'info'] as const;
-      variants.forEach(variant => {
-        const badge = <Badge variant={variant}>标签</Badge>;
-        expect(badge.props.variant).toBe(variant);
-      });
-    });
+    test('DateTimePicker 暴露输入框、label 和状态按钮语义', () => {
+      const markup = renderToStaticMarkup(
+        <DateTimePicker
+          label="出生时间"
+          value="2024-01-01 08:30:00"
+          onChange={() => {}}
+          dateType={0}
+          error="日期格式错误"
+        />
+      );
 
-    test('不同尺寸', () => {
-      const sizes = ['sm', 'md', 'lg'] as const;
-      sizes.forEach(size => {
-        const badge = <Badge size={size}>标签</Badge>;
-        expect(badge.props.size).toBe(size);
-      });
+      const inputId = extract(markup, /<input id="([^"]+)" type="text"/);
+      expect(markup).toContain(`<label for="${inputId}"`);
+      expect(markup).toContain('aria-invalid="true"');
+      expect(markup).toContain(`aria-describedby="${inputId}-error"`);
+      expect(markup).toContain(`aria-controls="${inputId}-picker"`);
+      expect(markup).toContain('aria-expanded="false"');
     });
   });
 
-  describe('Alert组件', () => {
-    test('渲染基础提示', () => {
-      const alert = <Alert>提示内容</Alert>;
-      expect(alert).toBeDefined();
-      expect(alert.props.children).toBe('提示内容');
-    });
+  describe('Alert', () => {
+    test('error / warning 使用 alert 语义，带关闭按钮 aria-label', () => {
+      const errorMarkup = renderToStaticMarkup(
+        <Alert type="error" title="校验失败" onClose={() => {}}>
+          日期格式无效
+        </Alert>
+      );
 
-    test('不同类型', () => {
-      const types = ['info', 'success', 'warning', 'error'] as const;
-      types.forEach(type => {
-        const alert = <Alert type={type}>提示</Alert>;
-        expect(alert.props.type).toBe(type);
-      });
-    });
+      expect(errorMarkup).toContain('role="alert"');
+      expect(errorMarkup).toContain('aria-label="关闭提示"');
+      expect(errorMarkup).toContain('校验失败');
 
-    test('带标题的提示', () => {
-      const alert = <Alert title="标题">内容</Alert>;
-      expect(alert.props.title).toBe('标题');
-    });
-
-    test('带关闭按钮的提示', () => {
-      const onClose = jest.fn();
-      const alert = <Alert onClose={onClose}>内容</Alert>;
-      expect(alert.props.onClose).toBe(onClose);
-    });
-
-    test('自定义图标', () => {
-      const alert = <Alert icon="🎉">内容</Alert>;
-      expect(alert.props.icon).toBe('🎉');
+      const infoMarkup = renderToStaticMarkup(<Alert type="info">已保存</Alert>);
+      expect(infoMarkup).toContain('role="status"');
     });
   });
 });

@@ -1,25 +1,64 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { createZiWeiPaiPan } from '@/lib/ziwei';
 import { ZiWeiSettings, ZiWeiResult } from '@/types';
-import { Card, InfoCard } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input, RadioGroup } from '@/components/ui/Input';
-import { Badge } from '@/components/ui/Badge';
-import { DateTimePicker } from '@/components/ui/FormControls';
+import { DateTimePicker, Select } from '@/components/ui/FormControls';
 import { AIAssistant } from '@/components/ai';
+import { PageLayout as DossierPageLayout, WorkbenchPanel, WorkbenchStat } from '@/components/ui/page-layout';
+import {
+  DossierResultBlock,
+  DossierResultList,
+  DossierResultMetric,
+  DossierResultSection,
+  DossierResultTagList,
+} from '@/components/ui/result';
+
+const GONG_ORDER = ['寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥', '子', '丑'] as const;
+const CARD_TONES = [
+  'border-[#d9c5a9] bg-[#fff7ea]',
+  'border-[#ddd8c7] bg-[#faf7f0]',
+  'border-[#d3ddcf] bg-[#f3faf2]',
+  'border-[#e2d3c2] bg-[#fff4ea]',
+  'border-[#d6ccbd] bg-[#faf5ed]',
+  'border-[#d2d9de] bg-[#f2f7fa]',
+  'border-[#d8d4c4] bg-[#f7f6f1]',
+  'border-[#ddd1c2] bg-[#fbf2ea]',
+  'border-[#d7cab9] bg-[#f8f2e8]',
+  'border-[#d4dccc] bg-[#f4f8f1]',
+  'border-[#d3d9df] bg-[#f2f7fb]',
+  'border-[#d7cec2] bg-[#faf4ec]',
+] as const;
+const SI_HUA_ITEMS = [
+  { label: '化禄', valueKey: 'huaLu', descKey: 'huaLuJieDu', tone: 'success' as const },
+  { label: '化权', valueKey: 'huaQuan', descKey: 'huaQuanJieDu', tone: 'default' as const },
+  { label: '化科', valueKey: 'huaKe', descKey: 'huaKeJieDu', tone: 'muted' as const },
+  { label: '化忌', valueKey: 'huaJi', descKey: 'huaJiJieDu', tone: 'danger' as const },
+] as const;
+
+function joinStars(items?: string[]) {
+  return items?.length ? items.join('、') : '暂无';
+}
 
 export default function ZiWeiPage() {
   const [settings, setSettings] = useState<ZiWeiSettings>({
     name: '',
+    occupy: '',
     sex: 1,
     date: '2024-01-01 00:00:00',
     dateType: 0,
-    birthHour: 0
+    leapMonthType: 0,
+    xuShiSuiType: 0,
+    jieQiType: 1,
+    wuXingJuType: 0,
+    yearGanZhiType: 2,
+    monthGanZhiType: 1,
+    dayGanZhiType: 0,
   });
-
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [result, setResult] = useState<ZiWeiResult | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -38,383 +77,434 @@ export default function ZiWeiPage() {
     }
   };
 
+  const orderedGongWei = result
+    ? GONG_ORDER.map((zhi) => ({
+        zhi,
+        gong: result.gongWei[zhi],
+      }))
+    : [];
+  const quickStats = [
+    { label: '占事', value: settings.occupy?.trim() || '未填写' },
+    { label: '性别', value: settings.sex === 1 ? '男命' : '女命' },
+    { label: '日期类型', value: settings.dateType === 0 ? '公历' : '农历' },
+    { label: '虚实岁', value: settings.xuShiSuiType === 0 ? '虚岁' : '实岁' },
+  ];
+  const configNotes = [
+    { label: '出生时刻', value: settings.date || '未设置' },
+    { label: '节气口径', value: settings.jieQiType === 1 ? '按分钟' : '按天' },
+    { label: '五行局', value: settings.wuXingJuType === 0 ? '年干 + 命宫地支' : '命宫天干 + 命宫地支' },
+    { label: '年柱口径', value: settings.yearGanZhiType === 2 ? '立春交接时刻' : settings.yearGanZhiType === 1 ? '立春当天' : '正月初一' },
+  ];
+  const outputItems = ['十二宫命盘布局', '命主、身主与四化', '大限小限与节气底稿', '宫位详情与 AI 解读'];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-rose-50 to-purple-50">
-      {/* 头部 */}
-      <header className="border-b border-pink-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="text-3xl">★</div>
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent">
-                  紫微斗数排盘
-                </h1>
-                <p className="text-xs text-gray-500">星曜命盘 · 推演人生</p>
-              </div>
-            </Link>
-            <Link
-              href="/"
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:shadow-lg transition-all"
-            >
-              返回首页
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          {/* 输入表单 */}
-          <Card title="输入信息" icon="📝" className="mb-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 姓名 */}
-                <Input
-                  label="姓名（可选）"
-                  type="text"
-                  value={settings.name}
-                  onChange={(e) => setSettings({ ...settings, name: e.target.value })}
-                  placeholder="请输入姓名"
-                  fullWidth
-                />
-
-                {/* 性别 */}
-                <RadioGroup
-                  label="性别"
-                  name="sex"
-                  value={settings.sex}
-                  onChange={(value) => setSettings({ ...settings, sex: Number(value) as 0 | 1 })}
-                  options={[
-                    { label: '男', value: 1 },
-                    { label: '女', value: 0 }
-                  ]}
-                />
-
-                {/* 日期类型 */}
-                <RadioGroup
-                  label="日期类型"
-                  name="dateType"
-                  value={settings.dateType}
-                  onChange={(value) => setSettings({ ...settings, dateType: Number(value) as 0 | 1 })}
-                  options={[
-                    { label: '公历', value: 0 },
-                    { label: '农历', value: 1 }
-                  ]}
-                />
-
-                {/* 出生时辰 */}
-                <Input
-                  label="出生时辰（小时）"
-                  type="number"
-                  min="0"
-                  max="23"
-                  value={settings.birthHour}
-                  onChange={(e) => setSettings({ ...settings, birthHour: parseInt(e.target.value) || 0 })}
-                  placeholder="0-23"
-                  fullWidth
-                />
-              </div>
-
-              {/* 日期时间 */}
-              <DateTimePicker
-                label="出生日期时间"
-                value={settings.date}
-                onChange={(value) => setSettings({ ...settings, date: value })}
-                dateType={settings.dateType}
-                helperText="格式：年-月-日 时:分:秒（例如：2024-01-01 08:30:00）"
-              />
-
-              {/* 提交按钮 */}
-              <Button
-                type="submit"
-                loading={loading}
+    <DossierPageLayout
+      title="紫微斗数排盘"
+      hasResult={Boolean(result)}
+      rail={
+        <Card title="输入信息" icon="📝">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <Input
+                label="姓名（可选）"
+                type="text"
+                value={settings.name}
+                onChange={(e) => setSettings({ ...settings, name: e.target.value })}
+                placeholder="请输入姓名"
                 fullWidth
-                size="lg"
-                gradient="from-pink-500 to-rose-500"
+              />
+              <Input
+                label="占事（可选）"
+                type="text"
+                value={settings.occupy}
+                onChange={(e) => setSettings({ ...settings, occupy: e.target.value })}
+                placeholder="请输入关注主题"
+                fullWidth
+              />
+              <RadioGroup
+                label="性别"
+                name="sex"
+                value={settings.sex}
+                onChange={(value) => setSettings({ ...settings, sex: Number(value) as 0 | 1 })}
+                options={[
+                  { label: '男', value: 1 },
+                  { label: '女', value: 0 },
+                ]}
+              />
+              <RadioGroup
+                label="日期类型"
+                name="dateType"
+                value={settings.dateType}
+                onChange={(value) => setSettings({ ...settings, dateType: Number(value) as 0 | 1 })}
+                options={[
+                  { label: '公历', value: 0 },
+                  { label: '农历', value: 1 },
+                ]}
+              />
+            </div>
+
+            <DateTimePicker
+              label="出生日期时间"
+              value={settings.date}
+              onChange={(value) => setSettings({ ...settings, date: value })}
+              dateType={settings.dateType}
+              helperText="格式：年-月-日 时:分:秒（例如：2024-01-01 08:30:00）"
+              pickerOnly
+            />
+
+            <div className="border-t border-[rgba(117,76,40,0.12)] pt-6">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((prev) => !prev)}
+                className="flex items-center gap-2 text-sm font-medium text-[#7d5830] transition-colors hover:text-[#9a6a38]"
               >
-                开始排盘
-              </Button>
-            </form>
-          </Card>
+                <span>{showAdvanced ? '▼' : '▶'}</span>
+                <span>高级配置</span>
+              </button>
 
-          {/* 排盘结果 */}
-          {result && (
-            <Card title="命盘结果" icon="✨" className="animate-fadeIn">
-              {/* 传统命盘展示 - 环形布局 */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">十二宫命盘</h3>
+              {showAdvanced ? (
+                <div className="mt-5 grid gap-4 rounded-[22px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,250,244,0.92)] p-5 md:grid-cols-2">
+                  <Select
+                    label="虚实岁"
+                    value={settings.xuShiSuiType ?? 0}
+                    onChange={(value) => setSettings({ ...settings, xuShiSuiType: Number(value) as 0 | 1 })}
+                    options={[
+                      { label: '虚岁', value: 0 },
+                      { label: '实岁', value: 1 },
+                    ]}
+                  />
+                  <Select
+                    label="节气口径"
+                    value={settings.jieQiType ?? 1}
+                    onChange={(value) => setSettings({ ...settings, jieQiType: Number(value) as 0 | 1 })}
+                    options={[
+                      { label: '按分钟', value: 1 },
+                      { label: '按天', value: 0 },
+                    ]}
+                  />
+                  <Select
+                    label="五行局"
+                    value={settings.wuXingJuType ?? 0}
+                    onChange={(value) => setSettings({ ...settings, wuXingJuType: Number(value) as 0 | 1 })}
+                    options={[
+                      { label: '年干 + 命宫地支', value: 0 },
+                      { label: '命宫天干 + 命宫地支', value: 1 },
+                    ]}
+                  />
+                  <Select
+                    label="年柱口径"
+                    value={settings.yearGanZhiType ?? 2}
+                    onChange={(value) => setSettings({ ...settings, yearGanZhiType: Number(value) as 0 | 1 | 2 })}
+                    options={[
+                      { label: '立春交接时刻', value: 2 },
+                      { label: '立春当天', value: 1 },
+                      { label: '正月初一', value: 0 },
+                    ]}
+                  />
+                  <Select
+                    label="月柱口径"
+                    value={settings.monthGanZhiType ?? 1}
+                    onChange={(value) => setSettings({ ...settings, monthGanZhiType: Number(value) as 0 | 1 })}
+                    options={[
+                      { label: '节交接时刻', value: 1 },
+                      { label: '节交接当天', value: 0 },
+                    ]}
+                  />
+                  <Select
+                    label="日柱口径"
+                    value={settings.dayGanZhiType ?? 0}
+                    onChange={(value) => setSettings({ ...settings, dayGanZhiType: Number(value) as 0 | 1 })}
+                    options={[
+                      { label: '晚子时算当天', value: 0 },
+                      { label: '晚子时算明天', value: 1 },
+                    ]}
+                  />
+                  {settings.dateType === 1 ? (
+                    <Select
+                      label="闰月处理"
+                      value={settings.leapMonthType ?? 0}
+                      onChange={(value) => setSettings({ ...settings, leapMonthType: Number(value) as 0 | 1 })}
+                      options={[
+                        { label: '不启用闰月', value: 0 },
+                        { label: '启用闰月', value: 1 },
+                      ]}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
 
-                {/* 环形命盘 */}
-                <div className="relative w-full max-w-3xl mx-auto aspect-square mb-8">
-                  {/* 背景装饰 */}
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-pink-100 via-rose-100 to-purple-100 border-2 border-pink-200 shadow-inner"></div>
+            <Button type="submit" loading={loading} fullWidth size="lg">
+              开始排盘
+            </Button>
+          </form>
+        </Card>
+      }
+      emptySidebar={
+        <>
+          <WorkbenchPanel
+            eyebrow="当前配置"
+            title="命盘工作台"
+            description="未排盘时右栏先集中展示命盘口径和关键规则，页面更完整。"
+          >
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              {quickStats.map((item) => <WorkbenchStat key={item.label} label={item.label} value={item.value} />)}
+            </div>
+            <div className="mt-5 grid gap-3">
+              {configNotes.map((item) => (
+                <div key={item.label} className="flex items-start justify-between gap-4 rounded-[18px] border border-[#d8cab6] bg-white/72 px-4 py-3">
+                  <span className="text-xs uppercase tracking-[0.22em] text-[#8b6641]">{item.label}</span>
+                  <span className="text-right text-sm font-medium text-[#2f2118]">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </WorkbenchPanel>
 
-                  {/* 天盘圆环装饰 */}
-                  <div className="absolute inset-4 rounded-full border border-pink-300/50 border-dashed"></div>
-                  <div className="absolute inset-8 rounded-full border border-rose-300/30"></div>
-                  <div className="absolute inset-12 rounded-full border border-pink-200/30"></div>
+          <WorkbenchPanel
+            eyebrow="排盘输出"
+            title="提交后会展开这些内容"
+            description="结果区会直接转入十二宫、四化和限运结构。"
+            tone="dark"
+          >
+            <div className="space-y-3">
+              {outputItems.map((item, index) => (
+                <div key={item} className="flex items-start gap-3 rounded-[18px] border border-white/12 bg-white/8 px-4 py-3">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/22 bg-white/10 text-xs font-semibold text-white">
+                    {index + 1}
+                  </span>
+                  <span className="text-sm leading-6 text-white/88">{item}</span>
+                </div>
+              ))}
+            </div>
+          </WorkbenchPanel>
+        </>
+      }
+      stage={
+        <>
+          {result ? (
+            <div className="space-y-6">
+              <DossierResultSection
+                eyebrow="ZiWei Chart"
+                title="十二宫命盘"
+                description="先读宫位、命主、身主和四化，再向下读限运和宫位细目。"
+              >
+                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="rounded-[28px] border border-[rgba(117,76,40,0.12)] bg-[linear-gradient(180deg,rgba(255,251,244,0.96),rgba(246,238,226,0.96))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:p-5">
+                    <div className="relative mx-auto aspect-square w-full max-w-3xl">
+                      <div className="absolute inset-0 rounded-full border border-[#d8c1a1] bg-[radial-gradient(circle_at_center,rgba(255,252,247,0.96)_0%,rgba(244,233,215,0.94)_55%,rgba(231,217,194,0.92)_100%)] shadow-inner" />
+                      <div className="absolute inset-[8%] rounded-full border border-dashed border-[#c7a47a]/70" />
+                      <div className="absolute inset-[16%] rounded-full border border-[#d4c2a9]/75" />
+                      <div className="absolute inset-[26%] rounded-full border border-[#e1d3c0]/80" />
 
-                  {/* 中心 - 基础信息 */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-pink-500 via-rose-500 to-red-500 shadow-xl flex flex-col items-center justify-center text-white z-10">
-                      <div className="text-xs opacity-80">五行局</div>
-                      <div className="text-xl font-bold">{result.wuXingJu}</div>
-                      <div className="text-xs mt-1 opacity-80">{result.mingGong}宫</div>
-                    </div>
-                  </div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="z-10 flex h-32 w-32 flex-col items-center justify-center rounded-full border border-[#7d5830]/20 bg-[linear-gradient(135deg,#4b2e19,#8f5b2d)] text-center text-white shadow-[0_24px_48px_-24px_rgba(61,37,15,0.85)]">
+                          <div className="text-[11px] uppercase tracking-[0.22em] text-stone-200">五行局</div>
+                          <div className="mt-2 text-xl font-semibold tracking-[0.08em]">{result.wuXingJu}</div>
+                          <div className="mt-2 text-xs text-stone-200">{result.mingGong}宫</div>
+                        </div>
+                      </div>
 
-                  {/* 十二宫位 - 环形排列 */}
-                  <div className="absolute inset-0">
-                    {(() => {
-                      // 传统紫微斗数十二宫排列顺序（从命宫开始顺时针）
-                      const gongOrder = ['寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥', '子', '丑'];
-                      return gongOrder.map((zhi, index) => {
-                        const angle = (index * 30 - 90) * (Math.PI / 180); // 从顶部开始顺时针
-                        const radius = 38; // 百分比
+                      {orderedGongWei.map(({ zhi, gong }, index) => {
+                        const angle = (index * 30 - 90) * (Math.PI / 180);
+                        const radius = 38;
                         const x = 50 + radius * Math.cos(angle);
                         const y = 50 + radius * Math.sin(angle);
-                        const gong = result.gongWei[zhi];
 
                         return (
                           <div
                             key={zhi}
-                            className="absolute transform -translate-x-1/2 -translate-y-1/2"
-                            style={{
-                              left: `${x}%`,
-                              top: `${y}%`,
-                              width: '90px',
-                            }}
+                            className="absolute -translate-x-1/2 -translate-y-1/2"
+                            style={{ left: `${x}%`, top: `${y}%`, width: '96px' }}
                           >
-                            <div className={`
-                              p-2 rounded-lg text-xs text-center
-                              ${index === 0 ? 'bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg' :
-                                index === 3 || index === 9 ? 'bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-md' :
-                                'bg-white border border-pink-200 text-gray-700 shadow-sm'}
-                              ${gong?.zhuXing?.length > 0 ? 'ring-2 ring-pink-300' : ''}
-                            `}>
-                              {/* 宫位名称 */}
-                              <div className="font-bold text-[10px] mb-1">{gong?.name || zhi}</div>
-
-                              {/* 主星 */}
-                              {gong?.zhuXing?.slice(0, 2).map((xing, i) => (
-                                <div key={i} className={`text-[9px] ${i === 0 ? 'font-semibold' : ''} truncate`}>
-                                  {xing}
+                            <div
+                              className={`rounded-[18px] border p-2 text-center shadow-[0_16px_32px_-24px_rgba(61,37,15,0.38)] ${
+                                index === 0
+                                  ? 'border-[#9d7343] bg-[linear-gradient(135deg,#6c4625,#a06d38)] text-white'
+                                  : CARD_TONES[index]
+                              }`}
+                            >
+                              <div className={`text-[10px] font-semibold ${index === 0 ? 'text-stone-100' : 'text-[#6b5a4c]'}`}>
+                                {gong?.name || zhi}
+                              </div>
+                              <div className={`mt-1 text-[11px] font-semibold ${index === 0 ? 'text-white' : 'text-[#2f2118]'}`}>
+                                {gong?.zhuXing?.[0] || '暂无'}
+                              </div>
+                              {gong?.zhuXing?.[1] ? (
+                                <div className={`mt-0.5 break-words text-[10px] leading-[1.25] ${index === 0 ? 'text-stone-100' : 'text-[#5d4732]'}`}>
+                                  {gong.zhuXing[1]}
                                 </div>
-                              ))}
-
-                              {/* 辅星/煞星 */}
-                              {gong?.auxStars?.[0] && (
-                                <div className="text-[8px] text-purple-600 truncate">{gong.auxStars[0]}</div>
-                              )}
-                              {gong?.minorStars?.[0] && (
-                                <div className="text-[8px] text-orange-600 truncate">{gong.minorStars[0]}</div>
-                              )}
-
-                              {/* 四化 */}
-                              {gong?.siHua?.[0] && (
-                                <div className="text-[8px] font-bold text-red-500 mt-0.5">{gong.siHua[0]}</div>
-                              )}
+                              ) : null}
+                              {gong?.siHua?.[0] ? (
+                                <div className={`mt-1 text-[10px] font-medium ${index === 0 ? 'text-amber-100' : 'text-[#8a6239]'}`}>
+                                  {gong.siHua[0]}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         );
-                      });
-                    })()}
-                  </div>
-
-                  {/* 东南西北标注 */}
-                  <div className="absolute top-1 left-1/2 transform -translate-x-1/2 text-xs text-pink-600 font-semibold">北</div>
-                  <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 text-xs text-pink-600 font-semibold">南</div>
-                  <div className="absolute left-1 top-1/2 transform -translate-y-1/2 text-xs text-pink-600 font-semibold">东</div>
-                  <div className="absolute right-1 top-1/2 transform -translate-y-1/2 text-xs text-pink-600 font-semibold">西</div>
-                </div>
-
-                {/* 命主身主信息 */}
-                <div className="flex justify-center gap-8 mb-6">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 mb-1">命主</div>
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white font-bold shadow-lg">
-                      {result.mingZhu || '?'}
+                      })}
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 mb-1">身主</div>
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white font-bold shadow-lg">
-                      {result.shenZhu || '?'}
+
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <DossierResultMetric label="命宫" value={result.mingGong} note={result.age ? `${result.age} 岁` : undefined} />
+                      <DossierResultMetric label="身宫" value={result.shenGong} note={result.zao || undefined} />
+                      <DossierResultMetric label="命主" value={result.mingZhu || '暂无'} />
+                      <DossierResultMetric label="身主" value={result.shenZhu || '暂无'} />
                     </div>
+
+                    <DossierResultBlock title="命盘底稿">
+                      <DossierResultList
+                        items={[
+                          { label: '公历', value: result.solar },
+                          { label: '农历', value: result.lunar },
+                          { label: '五行局', value: result.wuXingJu },
+                          { label: '命宫 / 身宫', value: `${result.mingGong} / ${result.shenGong}` },
+                          { label: '生肖 / 星座', value: `${result.shengXiao || '暂无'} / ${result.xingZuo || '暂无'}` },
+                          { label: '月将 / 月将神', value: `${result.yueJiang || '暂无'} / ${result.yueJiangShen || '暂无'}` },
+                        ]}
+                      />
+                    </DossierResultBlock>
+
+                    <DossierResultBlock title="干支与节气">
+                      <DossierResultList
+                        items={[
+                          { label: '年柱', value: result.yearGanZhi || '暂无' },
+                          { label: '月柱', value: result.monthGanZhi || '暂无' },
+                          { label: '日柱', value: result.dayGanZhi || '暂无' },
+                          { label: '时柱', value: result.hourGanZhi || '暂无' },
+                          { label: '出生节', value: result.chuShengJie || '暂无' },
+                          { label: '出生气', value: result.chuShengQi || '暂无' },
+                        ]}
+                      />
+                    </DossierResultBlock>
                   </div>
                 </div>
-              </div>
+              </DossierResultSection>
 
-              {/* 四化星展示 */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">四化星</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 text-white text-center shadow-lg">
-                    <div className="text-lg mb-1">化禄</div>
-                    <div className="text-xl font-bold">{result.huaLu || '—'}</div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-500 text-white text-center shadow-lg">
-                    <div className="text-lg mb-1">化权</div>
-                    <div className="text-xl font-bold">{result.huaQuan || '—'}</div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-purple-400 to-pink-500 text-white text-center shadow-lg">
-                    <div className="text-lg mb-1">化科</div>
-                    <div className="text-xl font-bold">{result.huaKe || '—'}</div>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-red-400 to-orange-500 text-white text-center shadow-lg">
-                    <div className="text-lg mb-1">化忌</div>
-                    <div className="text-xl font-bold">{result.huaJi || '—'}</div>
-                  </div>
+              <DossierResultSection
+                eyebrow="Transformation"
+                title="四化与限运"
+                description="四化和限运拆成独立内页，不再沿用粉色渐变卡的旧视觉。"
+              >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <DossierResultBlock title="四化星">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      {SI_HUA_ITEMS.map((item) => (
+                        <DossierResultMetric
+                          key={item.label}
+                          label={item.label}
+                          value={result[item.valueKey] || '—'}
+                          note={result[item.descKey] || '暂无补充解读'}
+                        />
+                      ))}
+                    </div>
+                  </DossierResultBlock>
+
+                  <DossierResultBlock title="四化解读">
+                    <div className="space-y-4">
+                      {SI_HUA_ITEMS.map((item) =>
+                        result[item.descKey] ? (
+                          <div
+                            key={`${item.label}-desc`}
+                            className="rounded-[20px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,252,247,0.86)] px-4 py-4"
+                          >
+                            <div className="mb-2">
+                              <DossierResultTagList items={[item.label]} tone={item.tone} />
+                            </div>
+                            <p className="text-sm leading-7 text-[#5d4732]">{result[item.descKey]}</p>
+                          </div>
+                        ) : null
+                      )}
+                      {!SI_HUA_ITEMS.some((item) => result[item.descKey]) ? (
+                        <div className="text-sm leading-7 text-[#7b6b5f]">当前命盘未提供额外四化解读。</div>
+                      ) : null}
+                    </div>
+                  </DossierResultBlock>
                 </div>
-              </div>
 
-              {/* 四化解读 */}
-              {(result.huaLuJieDu || result.huaQuanJieDu || result.huaKeJieDu || result.huaJiJieDu) && (
-                <div className="mb-8 p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">四化解读</h3>
-                  <div className="space-y-3 text-sm">
-                    {result.huaLuJieDu && (
-                      <div className="flex gap-2">
-                        <Badge variant="success" size="sm">化禄</Badge>
-                        <span className="text-gray-700">{result.huaLuJieDu}</span>
-                      </div>
-                    )}
-                    {result.huaQuanJieDu && (
-                      <div className="flex gap-2">
-                        <Badge variant="info" size="sm">化权</Badge>
-                        <span className="text-gray-700">{result.huaQuanJieDu}</span>
-                      </div>
-                    )}
-                    {result.huaKeJieDu && (
-                      <div className="flex gap-2">
-                        <Badge variant="default" size="sm">化科</Badge>
-                        <span className="text-gray-700">{result.huaKeJieDu}</span>
-                      </div>
-                    )}
-                    {result.huaJiJieDu && (
-                      <div className="flex gap-2">
-                        <Badge variant="danger" size="sm">化忌</Badge>
-                        <span className="text-gray-700">{result.huaJiJieDu}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 大限小限 */}
-              {(result.daXian || result.xiaoXian) && (
-                <div className="mb-8 p-6 bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl border border-rose-100">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">大限流年</h3>
-                  <div className="space-y-6">
-                    {/* 大限 */}
-                    {result.daXian && result.daXian.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-pink-500"></span>
-                          大限（十年一限）
-                        </h4>
-                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                          {result.daXian.map((limit, index) => {
-                            const gongWeiKeys = Object.keys(result.gongWei);
-                            const gongName = result.gongWei[gongWeiKeys[index]]?.name || `第${index + 1}宫`;
-                            return (
-                              <div key={index} className="p-2 bg-white rounded-lg shadow-sm text-center border border-pink-100 hover:border-pink-300 transition-colors">
-                                <div className="text-[10px] text-pink-600 mb-0.5">{gongName}</div>
-                                <div className="text-xs font-medium text-gray-800">{limit}</div>
-                              </div>
-                            );
-                          })}
+                {(result.daXian?.length || result.xiaoXian?.length) ? (
+                  <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                    {result.daXian?.length ? (
+                      <DossierResultBlock title="大限">
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {result.daXian.map((limit, index) => (
+                            <DossierResultMetric
+                              key={`da-${index}`}
+                              label={result.gongWei[GONG_ORDER[index]]?.name || `第${index + 1}宫`}
+                              value={limit}
+                              note={GONG_ORDER[index]}
+                            />
+                          ))}
                         </div>
-                      </div>
-                    )}
+                      </DossierResultBlock>
+                    ) : null}
 
-                    {/* 小限 */}
-                    {result.xiaoXian && result.xiaoXian.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                          小限（一年一限）
-                        </h4>
-                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                          {result.xiaoXian.map((limit, index) => {
-                            const gongWeiKeys = Object.keys(result.gongWei);
-                            const gongName = result.gongWei[gongWeiKeys[index]]?.name || `第${index + 1}宫`;
-                            return (
-                              <div key={index} className="p-2 bg-white rounded-lg shadow-sm text-center border border-purple-100 hover:border-purple-300 transition-colors">
-                                <div className="text-[10px] text-purple-600 mb-0.5">{gongName}</div>
-                                <div className="text-xs font-medium text-gray-800">{limit}</div>
-                              </div>
-                            );
-                          })}
+                    {result.xiaoXian?.length ? (
+                      <DossierResultBlock title="小限">
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {result.xiaoXian.map((limit, index) => (
+                            <DossierResultMetric
+                              key={`xiao-${index}`}
+                              label={result.gongWei[GONG_ORDER[index]]?.name || `第${index + 1}宫`}
+                              value={limit}
+                              note={GONG_ORDER[index]}
+                            />
+                          ))}
                         </div>
-                      </div>
-                    )}
+                      </DossierResultBlock>
+                    ) : null}
                   </div>
-                </div>
-              )}
+                ) : null}
+              </DossierResultSection>
 
-              {/* 十二宫位详细表格 */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">十二宫位详情</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+              <DossierResultSection
+                eyebrow="Palace Detail"
+                title="十二宫位详情"
+                description="宫位详情统一回表格式纸页，主星、辅星、杂曜与四化保持同一套标签语言。"
+              >
+                <div className="overflow-x-auto rounded-[24px] border border-[rgba(117,76,40,0.12)] bg-[rgba(255,253,248,0.92)] shadow-[0_20px_38px_-32px_rgba(56,35,12,0.5)]">
+                  <table className="min-w-full text-sm">
                     <thead>
-                      <tr className="bg-gradient-to-r from-pink-500 to-rose-500 text-white">
-                        <th className="p-3 text-left rounded-l-lg">宫位</th>
-                        <th className="p-3 text-center">主星</th>
-                        <th className="p-3 text-center">辅星</th>
-                        <th className="p-3 text-center">杂曜</th>
-                        <th className="p-3 text-center rounded-r-lg">四化</th>
+                      <tr className="bg-[linear-gradient(135deg,#4b2e19,#8f5b2d)] text-left text-white">
+                        <th className="px-4 py-3">宫位</th>
+                        <th className="px-4 py-3">主星</th>
+                        <th className="px-4 py-3">辅星</th>
+                        <th className="px-4 py-3">杂曜</th>
+                        <th className="px-4 py-3">四化</th>
+                        <th className="px-4 py-3">辅记</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(result.gongWei).map(([zhi, gong], index) => (
+                      {orderedGongWei.map(({ zhi, gong }, index) => (
                         <tr
                           key={zhi}
-                          className={`
-                            ${index % 2 === 0 ? 'bg-white' : 'bg-pink-50'}
-                            hover:bg-pink-100 transition-colors
-                          `}
+                          className={index % 2 === 0 ? 'bg-[rgba(255,252,247,0.92)]' : 'bg-[rgba(247,240,229,0.86)]'}
                         >
-                          <td className="p-3">
-                            <div className="font-semibold text-gray-800">{gong.name}</div>
-                            <div className="text-xs text-pink-500">{zhi}</div>
+                          <td className="px-4 py-4 align-top">
+                            <div className="font-semibold text-[#2f2118]">{gong?.name || zhi}</div>
+                            <div className="mt-1 text-xs text-[#8a6239]">{zhi}</div>
                           </td>
-                          <td className="p-3 text-center">
-                            <div className="flex flex-wrap justify-center gap-1">
-                              {gong.zhuXing.map((xing, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-gradient-to-r from-pink-100 to-rose-100 text-pink-700 rounded-full text-xs">
-                                  {xing}
-                                </span>
-                              ))}
-                            </div>
+                          <td className="px-4 py-4 align-top">
+                            <DossierResultTagList items={gong?.zhuXing} />
                           </td>
-                          <td className="p-3 text-center">
-                            <div className="flex flex-wrap justify-center gap-1">
-                              {gong.auxStars?.map((xing, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-gradient-to-r from-purple-100 to-violet-100 text-purple-700 rounded-full text-xs">
-                                  {xing}
-                                </span>
-                              ))}
-                            </div>
+                          <td className="px-4 py-4 align-top">
+                            <DossierResultTagList items={gong?.auxStars} tone="muted" />
                           </td>
-                          <td className="p-3 text-center">
-                            <div className="flex flex-wrap justify-center gap-1">
-                              {gong.minorStars?.map((xing, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 rounded-full text-xs">
-                                  {xing}
-                                </span>
-                              ))}
-                            </div>
+                          <td className="px-4 py-4 align-top">
+                            <DossierResultTagList items={gong?.minorStars} tone="warning" />
                           </td>
-                          <td className="p-3 text-center">
-                            <div className="flex flex-wrap justify-center gap-1">
-                              {gong.siHua?.map((xing, i) => (
-                                <span key={i} className="px-2 py-0.5 bg-gradient-to-r from-red-100 to-rose-100 text-red-700 rounded-full text-xs font-semibold">
-                                  {xing}
-                                </span>
-                              ))}
+                          <td className="px-4 py-4 align-top">
+                            <DossierResultTagList items={gong?.siHua} tone="danger" />
+                          </td>
+                          <td className="px-4 py-4 align-top">
+                            <div className="space-y-1 text-xs leading-6 text-[#6b5a4c]">
+                              <div>天干：{gong?.tianGan || '—'}</div>
+                              <div>长生：{gong?.zhangSheng || '—'}</div>
+                              <div>博士：{gong?.boShi || '—'}</div>
+                              <div>岁前：{gong?.liuNianSuiQian || '—'}</div>
+                              <div>将前：{gong?.liuNianJiangQian || '—'}</div>
                             </div>
                           </td>
                         </tr>
@@ -422,14 +512,12 @@ export default function ZiWeiPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </Card>
-          )}
-        </div>
-      </main>
-
-      {/* AI助手 */}
-      {result && <AIAssistant system="ziwei" chartData={result} />}
-    </div>
+              </DossierResultSection>
+            </div>
+          ) : null}
+        </>
+      }
+      footer={result ? <AIAssistant system="ziwei" chartData={result} /> : null}
+    />
   );
 }

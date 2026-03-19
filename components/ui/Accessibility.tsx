@@ -129,7 +129,7 @@ export function useAccessibility() {
 }
 
 // 焦点管理Hook
-export function useFocusTrap(ref: React.RefObject<HTMLElement>, active: boolean) {
+export function useFocusTrap(ref: React.RefObject<HTMLElement | null>, active: boolean) {
   useEffect(() => {
     if (!active || !ref.current) return;
 

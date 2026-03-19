@@ -1,93 +1,193 @@
+// @ts-ignore - lunar-javascript 类型定义不完整
 import { Solar, Lunar } from 'lunar-javascript';
-import { QiMenSettings, QiMenResult } from '@/types';
-import { DI_ZHI } from '../constants';
-import { parseDate, formatDate } from '../utils/common';
+import { QiMenResult, QiMenSettings } from '@/types';
+import { formatDate, getRealAge } from '../utils/common';
+import { parseLunarDateTimeString, parseSolarDateTimeString, solarPartsToDate } from '../utils/dateTime';
+import {
+  KONG_WANG,
+  NA_YIN,
+  TIAN_GAN_WU_XING,
+  DI_ZHI_WU_XING,
+  WU_BU_YU_SHI,
+  YUE_JIANG,
+} from '../liuyao/liuyaoMaps';
 import * as QiMenConstants from './constants';
 
-/**
- * 奇门遁甲排盘类（转盘）
- */
+type JieQiRef = {
+  toString(): string;
+  getSolar(): {
+    getYear(): number;
+    getMonth(): number;
+    getDay(): number;
+    getHour(): number;
+    getMinute(): number;
+    getSecond(): number;
+    toYmdHms(): string;
+  };
+};
+
+function solarToDate(solar: {
+  getYear(): number;
+  getMonth(): number;
+  getDay(): number;
+  getHour(): number;
+  getMinute(): number;
+  getSecond(): number;
+}): Date {
+  return new Date(
+    solar.getYear(),
+    solar.getMonth() - 1,
+    solar.getDay(),
+    solar.getHour(),
+    solar.getMinute(),
+    solar.getSecond()
+  );
+}
+
+function diffParts(start: Date, end: Date) {
+  let diff = Math.abs(end.getTime() - start.getTime());
+  const day = Math.floor(diff / (24 * 60 * 60 * 1000));
+  diff -= day * 24 * 60 * 60 * 1000;
+  const hour = Math.floor(diff / (60 * 60 * 1000));
+  diff -= hour * 60 * 60 * 1000;
+  const minute = Math.floor(diff / (60 * 1000));
+  diff -= minute * 60 * 1000;
+  const second = Math.floor(diff / 1000);
+
+  return { day, hour, minute, second };
+}
+
+function formatBirthMarker(name: string, relation: '后' | '前', start: Date, end: Date) {
+  const { day, hour, minute, second } = diffParts(start, end);
+  return `${name}${relation}${day}天${hour}小时${minute}分${second}秒`;
+}
+
+function calculateAge(date: Date, xuShiSuiType: 0 | 1) {
+  if (xuShiSuiType === 1) {
+    return getRealAge(date);
+  }
+
+  const now = new Date();
+  const realAge = getRealAge(date, now);
+  const passedBirthday =
+    now.getMonth() > date.getMonth() ||
+    (now.getMonth() === date.getMonth() && now.getDate() >= date.getDate());
+
+  return realAge + (passedBirthday ? 1 : 0);
+}
+
+function formatKongWang(value?: [string, string]): string | undefined {
+  return value ? value.join('、') : undefined;
+}
+
+function getDayOfYear(date: Date) {
+  const start = new Date(date.getFullYear(), 0, 1);
+  const current = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.floor((current.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+}
+
+function getGateByJieQi(jieQi: string) {
+  const gates = ['休门', '生门', '伤门', '杜门', '景门', '死门', '惊门', '开门'] as const;
+  const match = Object.entries(QiMenConstants.IS_BA_MEN).find(([, values]) => values.includes(jieQi));
+  return match ? gates[Number(match[0])] : '死门';
+}
+
 export class QiMenPaiPan {
-  private settings: QiMenSettings;
-  private solar: Solar;
-  private lunar: Lunar;
+  private settings: Required<
+    Pick<
+      QiMenSettings,
+      | 'name'
+      | 'occupy'
+      | 'sex'
+      | 'panType'
+      | 'date'
+      | 'dateType'
+      | 'leapMonthType'
+      | 'xuShiSuiType'
+      | 'jieQiType'
+      | 'paiPanType'
+      | 'zhiShiType'
+      | 'yueJiaQiJuType'
+      | 'yearGanZhiType'
+      | 'monthGanZhiType'
+      | 'dayGanZhiType'
+    >
+  >;
 
-  // 四柱干支
-  private yearGanZhi: string = '';
-  private monthGanZhi: string = '';
-  private dayGanZhi: string = '';
-  private hourGanZhi: string = '';
-  private yearGan: string = '';
-  private monthGan: string = '';
-  private dayGan: string = '';
-  private hourGan: string = '';
-  private yearZhi: string = '';
-  private monthZhi: string = '';
-  private dayZhi: string = '';
-  private hourZhi: string = '';
+  private solar!: Solar;
+  private lunar!: Lunar;
+  private solarDate!: Date;
+  private eightChar: any;
 
-  // 基础信息
-  private fuTou: string = '';
-  private jieQi: string = '';
-  private sanYuan: string = '';
-  private yinYangDun: string = '';
-  private juShu: number = 1;
-  private xunShou: string = '';
-  private xunShouYiZhang: string = '';
-  private xunShouGongWei: number = 1;
+  private yearGanZhi = '';
+  private monthGanZhi = '';
+  private dayGanZhi = '';
+  private hourGanZhi = '';
+  private yearGan = '';
+  private monthGan = '';
+  private dayGan = '';
+  private hourGan = '';
+  private yearZhi = '';
+  private monthZhi = '';
+  private dayZhi = '';
+  private hourZhi = '';
 
-  // 地盘数据
+  private prevJie!: JieQiRef;
+  private nextJie!: JieQiRef;
+  private prevQi!: JieQiRef;
+  private nextQi!: JieQiRef;
+
+  private fuTou = '';
+  private jieQi = '';
+  private sanYuan = '';
+  private yinYangDun = '';
+  private juShu = 1;
+  private xunShou = '';
+  private xunShouYiZhang = '';
+  private xunShouGongWei = 1;
+
   private diQiYi: string[] = [];
   private diLiuJia: string[] = [];
+  private zhiFu = '';
+  private zhiShi = '';
+  private oldZhiFuGongWei = 1;
+  private newZhiFuGongWei = 1;
+  private oldZhiShiGongWei = 1;
+  private newZhiShiGongWei = 1;
 
-  // 值符值使
-  private zhiFu: string = '';
-  private zhiShi: string = '';
-  private oldZhiFuGongWei: number = 1;
-  private newZhiFuGongWei: number = 1;
-  private oldZhiShiGongWei: number = 1;
-  private newZhiShiGongWei: number = 1;
-
-  // 四盘
   private diPan: string[] = [];
   private tianPan: string[] = [];
   private renPan: string[] = [];
   private shenPan: string[] = [];
+  private tianPanQiYiTianQinYes: string[] = new Array(9).fill('');
+  private tianPanQiYiTianQinNo: string[] = new Array(9).fill('');
 
   constructor(settings: QiMenSettings) {
     this.settings = {
-      panType: 'zhuan',
-      paiPanType: 3,  // 默认时家奇门
-      zhiShiType: 0,
-      yueJiaQiJuType: 1,
-      jieQiType: 1,
-      yearGanZhiType: 2,
-      monthGanZhiType: 1,
-      dayGanZhiType: 0,
-      leapMonthType: 0,
-      ...settings
+      name: settings.name ?? '',
+      occupy: settings.occupy ?? '',
+      sex: settings.sex ?? 1,
+      panType: settings.panType ?? 'zhuan',
+      date: settings.date ?? '2024-01-01 00:00:00',
+      dateType: settings.dateType ?? 0,
+      leapMonthType: settings.leapMonthType ?? 0,
+      xuShiSuiType: settings.xuShiSuiType ?? 0,
+      jieQiType: settings.jieQiType ?? 1,
+      paiPanType: settings.paiPanType ?? 3,
+      zhiShiType: settings.zhiShiType ?? 0,
+      yueJiaQiJuType: settings.yueJiaQiJuType ?? 1,
+      yearGanZhiType: settings.yearGanZhiType ?? 2,
+      monthGanZhiType: settings.monthGanZhiType ?? 1,
+      dayGanZhiType: settings.dayGanZhiType ?? 0,
     };
 
-    // 解析日期
-    const date = parseDate(this.settings.date);
-
-    if (this.settings.dateType === 0) {
-      this.solar = Solar.fromDate(date);
-      this.lunar = this.solar.getLunar();
-    } else {
-      this.lunar = Lunar.fromDate(date);
-      this.solar = this.lunar.getSolar();
+    if (this.settings.panType === 'fei') {
+      throw new Error('当前仅完成转盘奇门重构，暂不支持飞盘奇门');
     }
 
-    // 初始化
-    this.initialize();
-  }
-
-  /**
-   * 初始化所有数据
-   */
-  private initialize(): void {
+    this.initializeDate();
     this.initializeGanZhi();
+    this.initializeJieQi();
     this.initializeFuTouAndJieQi();
     this.initializeSanYuanAndJuShu();
     this.initializeYinYangDun();
@@ -99,127 +199,224 @@ export class QiMenPaiPan {
     this.initializeShenPan();
   }
 
-  /**
-   * 初始化四柱干支
-   */
-  private initializeGanZhi(): void {
-    const eightChar = this.lunar.getEightChar();
+  public getPaiPan(): QiMenResult {
+    const prevJieDate = this.prevJie.getSolar().toYmdHms();
+    const nextJieDate = this.nextJie.getSolar().toYmdHms();
+    const prevQiDate = this.prevQi.getSolar().toYmdHms();
+    const nextQiDate = this.nextQi.getSolar().toYmdHms();
+    const yueJiangData = this.getYueJiangData();
+    const liuJiaXunKong = this.getLiuJiaXunKong();
+    const liuJiaXunKongGongWei = this.getLiuJiaXunKongGongWei();
+    const yiMa = this.getYiMa();
 
-    this.yearGanZhi = this.lunar.getYearInGanZhi();
-    this.monthGanZhi = this.lunar.getMonthInGanZhi();
-    this.dayGanZhi = this.lunar.getDayInGanZhi();
-    this.hourGanZhi = this.lunar.getTimeInGanZhi();
+    return {
+      solar: formatDate(this.solarDate),
+      lunar: this.lunar.toString(),
+      name: this.settings.name || undefined,
+      occupy: this.settings.occupy || undefined,
+      sex: this.settings.sex === 1 ? '男' : '女',
+      age: calculateAge(this.solarDate, this.settings.xuShiSuiType),
+      zao: this.settings.sex === 1 ? '乾造' : '坤造',
+      xingQi: `周${this.lunar.getWeekInChinese()}`,
+      jiJie: this.lunar.getSeason(),
+      shengXiao: this.getShengXiao(),
+      xingZuo: `${this.solar.getXingZuo()}座`,
+      yueXiang: this.lunar.getYueXiang(),
+      yueJiang: yueJiangData[0],
+      yueJiangShen: yueJiangData[1],
+      wuBuYuShi: this.hourGanZhi === WU_BU_YU_SHI[this.dayGan],
 
-    this.yearGan = eightChar.getYearGan();
-    this.monthGan = eightChar.getMonthGan();
-    this.dayGan = eightChar.getDayGan();
-    this.hourGan = eightChar.getTimeGan();
+      yearGan: this.yearGan,
+      monthGan: this.monthGan,
+      dayGan: this.dayGan,
+      hourGan: this.hourGan,
+      yearZhi: this.yearZhi,
+      monthZhi: this.monthZhi,
+      dayZhi: this.dayZhi,
+      hourZhi: this.hourZhi,
+      yearGanZhi: this.yearGanZhi,
+      monthGanZhi: this.monthGanZhi,
+      dayGanZhi: this.dayGanZhi,
+      hourGanZhi: this.hourGanZhi,
+      yearGanWuXing: TIAN_GAN_WU_XING[this.yearGan],
+      monthGanWuXing: TIAN_GAN_WU_XING[this.monthGan],
+      dayGanWuXing: TIAN_GAN_WU_XING[this.dayGan],
+      hourGanWuXing: TIAN_GAN_WU_XING[this.hourGan],
+      yearZhiWuXing: DI_ZHI_WU_XING[this.yearZhi],
+      monthZhiWuXing: DI_ZHI_WU_XING[this.monthZhi],
+      dayZhiWuXing: DI_ZHI_WU_XING[this.dayZhi],
+      hourZhiWuXing: DI_ZHI_WU_XING[this.hourZhi],
+      yearGanZhiWuXing: `${TIAN_GAN_WU_XING[this.yearGan]}${DI_ZHI_WU_XING[this.yearZhi]}`,
+      monthGanZhiWuXing: `${TIAN_GAN_WU_XING[this.monthGan]}${DI_ZHI_WU_XING[this.monthZhi]}`,
+      dayGanZhiWuXing: `${TIAN_GAN_WU_XING[this.dayGan]}${DI_ZHI_WU_XING[this.dayZhi]}`,
+      hourGanZhiWuXing: `${TIAN_GAN_WU_XING[this.hourGan]}${DI_ZHI_WU_XING[this.hourZhi]}`,
+      yearGanZhiNaYin: NA_YIN[this.yearGanZhi],
+      monthGanZhiNaYin: NA_YIN[this.monthGanZhi],
+      dayGanZhiNaYin: NA_YIN[this.dayGanZhi],
+      hourGanZhiNaYin: NA_YIN[this.hourGanZhi],
+      yearGanZhiKongWang: formatKongWang(KONG_WANG[this.yearGanZhi]),
+      monthGanZhiKongWang: formatKongWang(KONG_WANG[this.monthGanZhi]),
+      dayGanZhiKongWang: formatKongWang(KONG_WANG[this.dayGanZhi]),
+      hourGanZhiKongWang: formatKongWang(KONG_WANG[this.hourGanZhi]),
 
-    this.yearZhi = eightChar.getYearZhi();
-    this.monthZhi = eightChar.getMonthZhi();
-    this.dayZhi = eightChar.getDayZhi();
-    this.hourZhi = eightChar.getTimeZhi();
+      prevJie: this.prevJie.toString(),
+      prevJieDate,
+      prevJieDay: diffParts(solarToDate(this.prevJie.getSolar()), this.solarDate).day,
+      nextJie: this.nextJie.toString(),
+      nextJieDate,
+      nextJieDay: diffParts(this.solarDate, solarToDate(this.nextJie.getSolar())).day,
+      chuShengJie: `${formatBirthMarker(this.prevJie.toString(), '后', solarToDate(this.prevJie.getSolar()), this.solarDate)}、${formatBirthMarker(this.nextJie.toString(), '前', this.solarDate, solarToDate(this.nextJie.getSolar()))}`,
+      prevQi: this.prevQi.toString(),
+      prevQiDate,
+      prevQiDay: diffParts(solarToDate(this.prevQi.getSolar()), this.solarDate).day,
+      nextQi: this.nextQi.toString(),
+      nextQiDate,
+      nextQiDay: diffParts(this.solarDate, solarToDate(this.nextQi.getSolar())).day,
+      chuShengQi: `${formatBirthMarker(this.prevQi.toString(), '后', solarToDate(this.prevQi.getSolar()), this.solarDate)}、${formatBirthMarker(this.nextQi.toString(), '前', this.solarDate, solarToDate(this.nextQi.getSolar()))}`,
+
+      fuTou: this.fuTou,
+      jieQi: this.jieQi,
+      sanYuan: this.sanYuan,
+      yinYangDun: this.yinYangDun,
+      juShu: `${this.yinYangDun}${this.juShu}局`,
+      xunShou: this.xunShou,
+      xunShouYiZhang: this.xunShouYiZhang,
+      zhiFu: this.zhiFu,
+      zhiShi: this.zhiShi,
+      tianYi: QiMenConstants.JIU_XING_INITIAL[this.newZhiFuGongWei - 1],
+      diYi: QiMenConstants.BA_MEN_INITIAL[this.newZhiShiGongWei - 1],
+      taiYi: this.zhiShi,
+      liuJiaXunKong,
+      liuJiaXunKongGongWei,
+      yiMa,
+      yiMaGongWei: yiMa ? QiMenConstants.YI_MA_GONG[yiMa] : undefined,
+
+      oldZhiFuGongWei: this.oldZhiFuGongWei,
+      newZhiFuGongWei: this.newZhiFuGongWei,
+      oldZhiShiGongWei: this.oldZhiShiGongWei,
+      newZhiShiGongWei: this.newZhiShiGongWei,
+
+      diPan: [...this.diPan],
+      tianPan: [...this.tianPan],
+      renPan: [...this.renPan],
+      shenPan: [...this.shenPan],
+      diLiuJia: [...this.diLiuJia],
+      tianPanQiYiTianQinYes: [...this.tianPanQiYiTianQinYes],
+      tianPanQiYiTianQinNo: [...this.tianPanQiYiTianQinNo],
+      liuYiJiXing: this.getSpecialMarks(QiMenConstants.LIU_YI_JI_XING),
+      qiYiRuMu: this.getSpecialMarks(QiMenConstants.QI_YI_RU_MU),
+    };
   }
 
-  /**
-   * 初始化符头和节气
-   */
-  private initializeFuTouAndJieQi(): void {
-    const paiPanType: 0 | 1 | 2 | 3 = this.settings.paiPanType ?? 3;
+  private initializeDate() {
+    if (this.settings.dateType === 1) {
+      const lunarParts = parseLunarDateTimeString(this.settings.date.trim());
+      if (!lunarParts) {
+        throw new Error('农历日期格式无效，请使用 L:yyyy-M-d HH:mm:ss 或 yyyy-M-d HH:mm:ss');
+      }
 
-    // 年家奇门、月家奇门
-    if (paiPanType === 0 || paiPanType === 1) {
-      this.fuTou = QiMenConstants.RI_ZHU_FU_TOU[this.dayGanZhi] || '甲子';
-      const prevJieQi = this.lunar.getPrevJieQi();
-      this.jieQi = prevJieQi ? prevJieQi.getName() : '冬至';
+      const month = this.settings.leapMonthType === 1 || lunarParts.isLeap
+        ? -Math.abs(lunarParts.month)
+        : Math.abs(lunarParts.month);
+
+      this.lunar = (Lunar as any).fromYmdHms(
+        lunarParts.year,
+        month,
+        lunarParts.day,
+        lunarParts.hour,
+        lunarParts.minute,
+        lunarParts.second
+      );
+      this.solar = this.lunar.getSolar();
+      this.solarDate = solarToDate(this.solar);
       return;
     }
 
-    // 日家奇门、时家奇门
-    if (paiPanType === 2 || paiPanType === 3) {
-      // 获取当前节气
-      const currentJieQi = this.lunar.getJieQi();
-
-      if (currentJieQi) {
-        // 当天是节气
-        this.jieQi = currentJieQi;
-        // 检查是否是符头
-        if (QiMenConstants.SAN_YUAN_FU_TOU.includes(this.dayGanZhi)) {
-          this.fuTou = this.dayGanZhi;
-        } else {
-          // 向前查找符头
-          this.fuTou = this.findPrevFuTou();
-        }
-      } else {
-        // 当天不是节气
-        if (QiMenConstants.SAN_YUAN_FU_TOU.includes(this.dayGanZhi)) {
-          // 当天是符头
-          this.fuTou = this.dayGanZhi;
-          const prevJieQi = this.lunar.getPrevJieQi();
-          this.jieQi = prevJieQi ? prevJieQi.getName() : '冬至';
-        } else {
-          // 向前查找符头和节气
-          this.fuTou = this.findPrevFuTou();
-          const prevJieQi = this.lunar.getPrevJieQi();
-          this.jieQi = prevJieQi ? prevJieQi.getName() : '冬至';
-        }
-      }
+    const solarParts = parseSolarDateTimeString(this.settings.date.trim());
+    if (!solarParts) {
+      throw new Error('日期格式无效，请使用 yyyy-MM-dd HH:mm:ss');
     }
+
+    this.solarDate = solarPartsToDate(solarParts);
+    this.solar = Solar.fromDate(this.solarDate);
+    this.lunar = this.solar.getLunar();
   }
 
-  /**
-   * 向前查找符头
-   */
-  private findPrevFuTou(): string {
-    for (let i = 1; i <= 60; i++) {
-      const prevLunar = this.lunar.next(-i);
-      const prevDayGanZhi = prevLunar.getDayInGanZhi();
-      if (QiMenConstants.SAN_YUAN_FU_TOU.includes(prevDayGanZhi)) {
-        return prevDayGanZhi;
-      }
-    }
-    return '甲子';
+  private initializeGanZhi() {
+    this.yearGanZhi = this.getYearGanZhi();
+    this.monthGanZhi = this.getMonthGanZhi();
+    this.dayGanZhi = this.getDayGanZhiByRef(this.lunar as any);
+
+    this.eightChar = this.lunar.getEightChar();
+    this.eightChar.setSect?.(this.settings.dayGanZhiType + 1);
+    this.hourGanZhi = this.eightChar.getTime();
+
+    this.yearGan = this.yearGanZhi.substring(0, 1);
+    this.monthGan = this.monthGanZhi.substring(0, 1);
+    this.dayGan = this.dayGanZhi.substring(0, 1);
+    this.hourGan = this.hourGanZhi.substring(0, 1);
+    this.yearZhi = this.yearGanZhi.substring(1, 2);
+    this.monthZhi = this.monthGanZhi.substring(1, 2);
+    this.dayZhi = this.dayGanZhi.substring(1, 2);
+    this.hourZhi = this.hourGanZhi.substring(1, 2);
   }
 
-  /**
-   * 初始化三元和局数
-   */
-  private initializeSanYuanAndJuShu(): void {
-    const paiPanType: 0 | 1 | 2 | 3 = this.settings.paiPanType ?? 3;
+  private initializeJieQi() {
+    const byDay = this.settings.jieQiType === 0;
+    const lunarRef = this.lunar as any;
+    this.prevJie = lunarRef.getPrevJie(byDay);
+    this.nextJie = lunarRef.getNextJie(byDay);
+    this.prevQi = lunarRef.getPrevQi(byDay);
+    this.nextQi = lunarRef.getNextQi(byDay);
+  }
 
-    // 1. 年家奇门
-    if (paiPanType === 0) {
-      // 简化实现：根据年份计算
+  private initializeFuTouAndJieQi() {
+    if (this.settings.paiPanType === 0 || this.settings.paiPanType === 1) {
+      this.fuTou = QiMenConstants.RI_ZHU_FU_TOU[this.dayGanZhi] ?? '甲子';
+      this.jieQi = this.getPrevJieQiName();
+      return;
+    }
+
+    const currentJieQi = this.getCurrentJieQi(this.lunar as any);
+    if (QiMenConstants.SAN_YUAN_FU_TOU.includes(this.dayGanZhi) && currentJieQi) {
+      this.fuTou = this.dayGanZhi;
+      this.jieQi = currentJieQi;
+      return;
+    }
+
+    const backwardResult = this.searchFuTouAndJieQi();
+    this.fuTou = backwardResult.fuTou;
+    this.jieQi = backwardResult.jieQi;
+  }
+
+  private initializeSanYuanAndJuShu() {
+    if (this.settings.paiPanType === 0) {
       const year = this.solar.getYear();
-      const cycle = year % 180;
-      if (cycle < 60) {
-        this.sanYuan = '上元';
-        this.juShu = ((cycle % 9) || 9);
-      } else if (cycle < 120) {
+      if (year <= 3) {
         this.sanYuan = '中元';
-        this.juShu = (((cycle - 60) % 9) || 9);
-      } else {
+        this.juShu = 4;
+        return;
+      }
+
+      const cycle = (year - 4) % 180;
+      if (cycle < 60) {
         this.sanYuan = '下元';
-        this.juShu = (((cycle - 120) % 9) || 9);
+        this.juShu = 7;
+      } else if (cycle < 120) {
+        this.sanYuan = '上元';
+        this.juShu = 1;
+      } else {
+        this.sanYuan = '中元';
+        this.juShu = 4;
       }
       return;
     }
 
-    // 2. 月家奇门
-    if (paiPanType === 1) {
-      const yueJiaQiJuType: 0 | 1 = this.settings.yueJiaQiJuType ?? 1;
-      let diZhi: string;
+    if (this.settings.paiPanType === 1) {
+      const diZhi = this.settings.yueJiaQiJuType === 0
+        ? this.yearZhi
+        : QiMenConstants.SIX_JIA_ZI_XUN_SHOU_AND_YI_ZHANG[this.yearGanZhi]?.[0]?.substring(1, 2) ?? this.yearZhi;
 
-      if (yueJiaQiJuType === 0) {
-        // 使用年支起局
-        diZhi = this.yearZhi;
-      } else {
-        // 使用年干支的符头地支起局
-        const fuTouData = QiMenConstants.SIX_JIA_ZI_XUN_SHOU_AND_YI_ZHANG[this.yearGanZhi];
-        diZhi = fuTouData ? fuTouData[0].substring(1, 2) : this.yearZhi;
-      }
-
-      // 根据地支判断三元和局数
       if (['寅', '申', '巳', '亥'].includes(diZhi)) {
         this.sanYuan = '上元';
         this.juShu = 1;
@@ -233,12 +430,9 @@ export class QiMenPaiPan {
       return;
     }
 
-    // 3. 日家奇门
-    if (paiPanType === 2) {
-      this.sanYuan = QiMenConstants.RI_ZHU_SAN_YUAN[this.dayGanZhi] || '上元';
-
-      // 根据当年第几天计算局数
-      const dayOfYear = this.solar.getDay();
+    if (this.settings.paiPanType === 2) {
+      this.sanYuan = QiMenConstants.RI_ZHU_SAN_YUAN[this.dayGanZhi] ?? '上元';
+      const dayOfYear = getDayOfYear(this.solarDate);
       if (dayOfYear <= 60) this.juShu = 1;
       else if (dayOfYear <= 120) this.juShu = 7;
       else if (dayOfYear <= 180) this.juShu = 4;
@@ -248,297 +442,261 @@ export class QiMenPaiPan {
       return;
     }
 
-    // 4. 时家奇门
-    if (paiPanType === 3) {
-      this.sanYuan = QiMenConstants.RI_ZHU_SAN_YUAN[this.dayGanZhi] || '上元';
-      const juShuArray = QiMenConstants.JU_SHU[this.jieQi] || [1, 7, 4];
-
-      if (this.sanYuan === '上元') this.juShu = juShuArray[0];
-      else if (this.sanYuan === '中元') this.juShu = juShuArray[1];
-      else this.juShu = juShuArray[2];
-    }
+    this.sanYuan = QiMenConstants.RI_ZHU_SAN_YUAN[this.dayGanZhi] ?? '上元';
+    const juShu = QiMenConstants.JU_SHU[this.jieQi] ?? [1, 7, 4];
+    if (this.sanYuan === '上元') this.juShu = juShu[0];
+    else if (this.sanYuan === '中元') this.juShu = juShu[1];
+    else this.juShu = juShu[2];
   }
 
-  /**
-   * 初始化阴阳遁
-   */
-  private initializeYinYangDun(): void {
-    const paiPanType: 0 | 1 | 2 | 3 = this.settings.paiPanType ?? 3;
-
-    // 年家奇门、月家奇门：一律阴遁
-    if (paiPanType === 0 || paiPanType === 1) {
+  private initializeYinYangDun() {
+    if (this.settings.paiPanType === 0 || this.settings.paiPanType === 1) {
       this.yinYangDun = '阴遁';
       return;
     }
 
-    // 日家奇门：根据节气判断
-    if (paiPanType === 2) {
-      const yangJieQi = QiMenConstants.YIN_YANG_DUN_JIE_QI['阳遁'];
-      this.yinYangDun = yangJieQi.includes(this.jieQi) ? '阳遁' : '阴遁';
+    if (this.settings.paiPanType === 2) {
+      this.yinYangDun = QiMenConstants.YIN_YANG_DUN_JIE_QI['阳遁'].includes(this.jieQi) ? '阳遁' : '阴遁';
       return;
     }
 
-    // 时家奇门：根据节气判断
-    if (paiPanType === 3) {
-      this.yinYangDun = QiMenConstants.JIE_QI_YIN_YANG_DUN[this.jieQi] || '阳遁';
-    }
+    this.yinYangDun = QiMenConstants.JIE_QI_YIN_YANG_DUN[this.jieQi] ?? '阳遁';
   }
 
-  /**
-   * 初始化旬首
-   */
-  private initializeXunShou(): void {
+  private initializeXunShou() {
     const xunShouData = QiMenConstants.SIX_JIA_ZI_XUN_SHOU_AND_YI_ZHANG[this.hourGanZhi];
-    if (xunShouData) {
-      this.xunShou = xunShouData[0];
-      this.xunShouYiZhang = xunShouData[1];
-    } else {
-      this.xunShou = '甲子';
-      this.xunShouYiZhang = '戊';
-    }
+    this.xunShou = xunShouData?.[0] ?? '甲子';
+    this.xunShouYiZhang = xunShouData?.[1] ?? '戊';
   }
 
-  /**
-   * 初始化地盘奇仪、地盘六甲、值符、值使
-   */
-  private initializeDiQiYiLiuJiaFuShi(): void {
-    // 获取地盘奇仪和六甲
+  private initializeDiQiYiLiuJiaFuShi() {
     if (this.yinYangDun === '阳遁') {
-      this.diQiYi = QiMenConstants.DI_YANG_QI_YI[this.juShu] || QiMenConstants.DI_YANG_QI_YI[1];
-      this.diLiuJia = QiMenConstants.DI_YANG_LIU_JIA[this.juShu] || QiMenConstants.DI_YANG_LIU_JIA[1];
+      this.diQiYi = [...(QiMenConstants.DI_YANG_QI_YI[this.juShu] ?? QiMenConstants.DI_YANG_QI_YI[1])];
+      this.diLiuJia = [...(QiMenConstants.DI_YANG_LIU_JIA[this.juShu] ?? QiMenConstants.DI_YANG_LIU_JIA[1])];
     } else {
-      this.diQiYi = QiMenConstants.DI_YIN_QI_YI[this.juShu] || QiMenConstants.DI_YIN_QI_YI[1];
-      this.diLiuJia = QiMenConstants.DI_YIN_LIU_JIA[this.juShu] || QiMenConstants.DI_YIN_LIU_JIA[1];
+      this.diQiYi = [...(QiMenConstants.DI_YIN_QI_YI[this.juShu] ?? QiMenConstants.DI_YIN_QI_YI[1])];
+      this.diLiuJia = [...(QiMenConstants.DI_YIN_LIU_JIA[this.juShu] ?? QiMenConstants.DI_YIN_LIU_JIA[1])];
     }
 
-    // 根据旬首找到旬首落宫
-    for (let i = 0; i < this.diLiuJia.length; i++) {
-      if (this.xunShou === this.diLiuJia[i]) {
-        this.xunShouGongWei = i + 1;
-        this.oldZhiFuGongWei = i + 1;
-        this.oldZhiShiGongWei = i + 1;
-        break;
-      }
+    const xunShouIndex = this.diLiuJia.findIndex((value) => value === this.xunShou);
+    if (xunShouIndex >= 0) {
+      this.xunShouGongWei = xunShouIndex + 1;
+      this.oldZhiFuGongWei = xunShouIndex + 1;
+      this.oldZhiShiGongWei = xunShouIndex + 1;
     }
 
-    // 设置值符
-    this.zhiFu = QiMenConstants.JIU_XING_INITIAL[this.xunShouGongWei - 1];
+    this.zhiFu = QiMenConstants.JIU_XING_INITIAL[this.xunShouGongWei - 1] ?? '天蓬';
 
-    // 设置值使
-    const zhiShiType: 0 | 1 | 2 = this.settings.zhiShiType ?? 0;
     if (this.zhiFu === '天禽' || this.xunShouGongWei === 5) {
-      if (zhiShiType === 1) {
-        // 根据阴阳遁判断
+      if (this.settings.zhiShiType === 1) {
         this.zhiShi = this.yinYangDun === '阳遁' ? '生门' : '死门';
-      } else if (zhiShiType === 2) {
-        // 根据节气判断
-        this.zhiShi = this.getZhiShiByJieQi();
+      } else if (this.settings.zhiShiType === 2) {
+        this.zhiShi = getGateByJieQi(this.jieQi);
       } else {
-        // 一律用死门
         this.zhiShi = '死门';
       }
     } else {
-      this.zhiShi = QiMenConstants.BA_MEN_INITIAL[this.xunShouGongWei - 1];
+      this.zhiShi = QiMenConstants.BA_MEN_INITIAL[this.xunShouGongWei - 1] ?? '休门';
     }
   }
 
-  /**
-   * 根据节气获取值使
-   */
-  private getZhiShiByJieQi(): string {
-    const yangJieQi = ['冬至', '立春', '春分', '立夏', '夏至', '立秋', '秋分', '立冬'];
-    return yangJieQi.includes(this.jieQi) ? '生门' : '死门';
-  }
-
-  /**
-   * 初始化地盘
-   */
-  private initializeDiPan(): void {
+  private initializeDiPan() {
     this.diPan = [...this.diQiYi];
   }
 
-  /**
-   * 初始化天盘
-   */
-  private initializeTianPan(): void {
-    // 若时干为甲，则使用旬首仪仗
+  private initializeTianPan() {
     const hourGan = this.hourGan === '甲' ? this.xunShouYiZhang : this.hourGan;
+    const hourGanIndex = this.diQiYi.findIndex((value) => value === hourGan);
+    if (hourGanIndex >= 0) {
+      this.newZhiFuGongWei = hourGanIndex + 1 === 5 ? 2 : hourGanIndex + 1;
+    }
 
-    // 计算时干落宫
-    for (let i = 0; i < this.diQiYi.length; i++) {
-      if (hourGan === this.diQiYi[i]) {
-        // 值符旋转后落入的宫位，若落中五宫则寄坤二宫
-        this.newZhiFuGongWei = (i + 1 === 5) ? 2 : i + 1;
-        break;
+    const zhiFuRef = this.zhiFu === '天禽' ? '天芮' : this.zhiFu;
+    const tianPan = Object.values(QiMenConstants.JIU_XING_SHUN).find(
+      (stars) => stars[this.newZhiFuGongWei - 1] === zhiFuRef
+    );
+
+    this.tianPan = [...(tianPan ?? QiMenConstants.JIU_XING_SHUN[0])];
+    const tianRuiIndex = this.tianPan.findIndex((star) => star === '天芮');
+    if (tianRuiIndex >= 0) {
+      this.tianPan[tianRuiIndex] = '芮禽';
+    }
+
+    this.tianPanQiYiTianQinYes = new Array(9).fill('');
+    const tianQinIndex = this.tianPan.findIndex((star) => star === '芮禽' || star === '天禽');
+    if (tianQinIndex >= 0) {
+      this.tianPanQiYiTianQinYes[tianQinIndex] = this.diQiYi[4];
+    }
+
+    this.tianPanQiYiTianQinNo = this.tianPan.map((star, index) => {
+      if (index === 4) {
+        return this.diQiYi[4];
       }
-    }
-
-    // 将九星依次加入宫位中
-    for (let i = 0; i < 9; i++) {
-      const jiuXing = QiMenConstants.JIU_XING_SHUN[i];
-      let zhiFu = this.zhiFu;
-
-      // 若值符为天禽，则使用天芮进行判断
-      if (zhiFu === '天禽') zhiFu = '天芮';
-
-      if (zhiFu === jiuXing[this.newZhiFuGongWei - 1]) {
-        // 找到匹配的九星排列
-        this.tianPan = [...jiuXing];
-
-        // 将天芮更换为芮禽
-        for (let j = 0; j < this.tianPan.length; j++) {
-          if (this.tianPan[j] === '天芮') {
-            this.tianPan[j] = '芮禽';
-            break;
-          }
-        }
-        break;
+      if (star === '芮禽') {
+        return this.diQiYi[1];
       }
-    }
-
-    if (this.tianPan.length === 0) {
-      this.tianPan = [...QiMenConstants.JIU_XING_INITIAL];
-    }
+      if (!star) {
+        return '';
+      }
+      const originalIndex = QiMenConstants.JIU_XING_INITIAL_MAP[star];
+      return originalIndex ? this.diQiYi[originalIndex - 1] : '';
+    });
   }
 
-  /**
-   * 初始化人盘
-   */
-  private initializeRenPan(): void {
-    const hourZhi = this.hourZhi;
+  private initializeRenPan() {
     const xunShouZhi = this.xunShou.substring(1, 2);
-
-    // 获取旬首地支在地支数组中的索引
-    let xunShouZhiIndex = DI_ZHI.indexOf(xunShouZhi);
-
-    // 计算从旬首地支到时支需要的步数
+    let xunShouZhiIndex = QiMenConstants.DI_ZHI_QIMEN.indexOf(xunShouZhi);
     let hourZhiCount = 0;
-    for (let i = 0; i < 12; i++) {
-      if (xunShouZhiIndex >= 12) {
+
+    for (let i = 0; i < QiMenConstants.DI_ZHI_QIMEN.length; i += 1) {
+      if (xunShouZhiIndex >= QiMenConstants.DI_ZHI_QIMEN.length) {
         xunShouZhiIndex = 0;
       }
-      if (DI_ZHI[xunShouZhiIndex] === hourZhi) {
+      if (QiMenConstants.DI_ZHI_QIMEN[xunShouZhiIndex] === this.hourZhi) {
         break;
       }
-      hourZhiCount++;
-      xunShouZhiIndex++;
+      hourZhiCount += 1;
+      xunShouZhiIndex += 1;
     }
 
-    // 计算值使旋转后的宫位
     let xunShouGong = this.xunShouGongWei;
-    if (xunShouZhi !== hourZhi) {
-      if (this.yinYangDun === '阳遁') {
-        // 阳遁顺排九宫
-        for (let i = 0; i < hourZhiCount; i++) {
-          if (xunShouGong >= 9) {
-            xunShouGong = 1;
-          } else {
-            xunShouGong++;
-          }
-        }
-      } else {
-        // 阴遁逆排九宫
-        for (let i = 0; i < hourZhiCount; i++) {
-          if (xunShouGong <= 1) {
-            xunShouGong = 9;
-          } else {
-            xunShouGong--;
-          }
+    if (xunShouZhi !== this.hourZhi) {
+      for (let i = 0; i < hourZhiCount; i += 1) {
+        if (this.yinYangDun === '阳遁') {
+          xunShouGong = xunShouGong >= 9 ? 1 : xunShouGong + 1;
+        } else {
+          xunShouGong = xunShouGong <= 1 ? 9 : xunShouGong - 1;
         }
       }
     }
 
-    // 若值使旋转后落中五宫则寄坤二宫
     this.newZhiShiGongWei = xunShouGong === 5 ? 2 : xunShouGong;
+    this.renPan = [
+      ...(Object.values(QiMenConstants.BA_MEN_SHUN_ZHUAN).find(
+        (gates) => gates[this.newZhiShiGongWei - 1] === this.zhiShi
+      ) ?? QiMenConstants.BA_MEN_SHUN_ZHUAN[0]),
+    ];
+  }
 
-    // 计算人盘
-    for (let i = 0; i < 9; i++) {
-      const baMen = QiMenConstants.BA_MEN_SHUN_ZHUAN[i];
-      if (baMen[this.newZhiShiGongWei - 1] === this.zhiShi) {
-        this.renPan = [...baMen];
-        break;
+  private initializeShenPan() {
+    const newZhiFuGong = this.newZhiFuGongWei === 5 ? 2 : this.newZhiFuGongWei;
+    this.shenPan = this.yinYangDun === '阳遁'
+      ? [...(QiMenConstants.BA_SHEN_SHUN_ZHUAN[newZhiFuGong] ?? QiMenConstants.BA_SHEN_SHUN_ZHUAN[1])]
+      : [...(QiMenConstants.BA_SHEN_NI_ZHUAN[newZhiFuGong] ?? QiMenConstants.BA_SHEN_NI_ZHUAN[1])];
+  }
+
+  private getYearGanZhi() {
+    const lunarRef = this.lunar as any;
+    if (this.settings.yearGanZhiType === 0) {
+      return lunarRef.getYearInGanZhi();
+    }
+    if (this.settings.yearGanZhiType === 1) {
+      return lunarRef.getYearInGanZhiByLiChun();
+    }
+    return lunarRef.getYearInGanZhiExact();
+  }
+
+  private getMonthGanZhi() {
+    const lunarRef = this.lunar as any;
+    return this.settings.monthGanZhiType === 0
+      ? lunarRef.getMonthInGanZhi()
+      : lunarRef.getMonthInGanZhiExact();
+  }
+
+  private getDayGanZhiByRef(lunarRef: any) {
+    return this.settings.dayGanZhiType === 0
+      ? lunarRef.getDayInGanZhiExact()
+      : lunarRef.getDayInGanZhiExact2();
+  }
+
+  private getShengXiao() {
+    const lunarRef = this.lunar as any;
+    if (this.settings.yearGanZhiType === 0) {
+      return lunarRef.getYearShengXiao();
+    }
+    if (this.settings.yearGanZhiType === 1) {
+      return lunarRef.getYearShengXiaoByLiChun();
+    }
+    return lunarRef.getYearShengXiaoExact();
+  }
+
+  private getPrevJieQiName() {
+    const lunarRef = this.lunar as any;
+    const jieQi = lunarRef.getPrevJieQi?.(this.settings.jieQiType === 0);
+    return jieQi?.getName?.() ?? jieQi?.toString?.() ?? '冬至';
+  }
+
+  private getCurrentJieQi(lunarRef: any) {
+    return lunarRef.getJieQi?.() ?? '';
+  }
+
+  private searchFuTouAndJieQi() {
+    let matchedJieQi = '';
+
+    for (let offset = 0; offset < QiMenConstants.SAN_YUAN_FU_TOU.length; offset += 1) {
+      const lunarRef = (this.lunar as any).next(-offset);
+      const dayGanZhi = this.getDayGanZhiByRef(lunarRef);
+      const currentJieQi = this.getCurrentJieQi(lunarRef);
+
+      if (!matchedJieQi && currentJieQi) {
+        matchedJieQi = currentJieQi;
+      }
+
+      if (QiMenConstants.SAN_YUAN_FU_TOU.includes(dayGanZhi)) {
+        return {
+          fuTou: dayGanZhi,
+          jieQi: matchedJieQi || this.getPrevJieQiName(),
+        };
       }
     }
 
-    if (this.renPan.length === 0) {
-      this.renPan = [...QiMenConstants.BA_MEN_INITIAL];
-    }
-  }
-
-  /**
-   * 初始化神盘
-   */
-  private initializeShenPan(): void {
-    // 若值符落中五宫则寄二宫
-    const newZhiFuGong = this.newZhiFuGongWei === 5 ? 2 : this.newZhiFuGongWei;
-
-    // 根据阴阳遁选择顺转或逆转
-    if (this.yinYangDun === '阳遁') {
-      this.shenPan = QiMenConstants.BA_SHEN_SHUN_ZHUAN[newZhiFuGong] ||
-                     [...QiMenConstants.BA_SHEN, ''];
-    } else {
-      this.shenPan = QiMenConstants.BA_SHEN_NI_ZHUAN[newZhiFuGong] ||
-                     [...QiMenConstants.BA_SHEN, ''];
-    }
-  }
-
-  /**
-   * 获取排盘结果
-   */
-  public getPaiPan(): QiMenResult {
-    const result: QiMenResult = {
-      solar: formatDate(new Date(
-        this.solar.getYear(),
-        this.solar.getMonth() - 1,
-        this.solar.getDay(),
-        this.solar.getHour(),
-        this.solar.getMinute(),
-        this.solar.getSecond()
-      )),
-      lunar: this.lunar.toString(),
-      name: this.settings.name,
-      occupy: this.settings.occupy,
-
-      // 四柱干支
-      yearGanZhi: this.yearGanZhi,
-      monthGanZhi: this.monthGanZhi,
-      dayGanZhi: this.dayGanZhi,
-      hourGanZhi: this.hourGanZhi,
-
-      // 基础信息
-      fuTou: this.fuTou,
-      jieQi: this.jieQi,
-      sanYuan: this.sanYuan,
-      yinYangDun: this.yinYangDun,
-      juShu: `${this.yinYangDun}${this.juShu}局`,
-      xunShou: this.xunShou,
-      zhiFu: this.zhiFu,
-      zhiShi: this.zhiShi,
-
-      // 值符值使宫位
-      oldZhiFuGongWei: this.oldZhiFuGongWei,
-      newZhiFuGongWei: this.newZhiFuGongWei,
-      oldZhiShiGongWei: this.oldZhiShiGongWei,
-      newZhiShiGongWei: this.newZhiShiGongWei,
-
-      // 四盘
-      diPan: this.diPan,
-      tianPan: this.tianPan,
-      renPan: this.renPan,
-      shenPan: this.shenPan,
-
-      // 地盘六甲
-      diLiuJia: this.diLiuJia
+    return {
+      fuTou: QiMenConstants.RI_ZHU_FU_TOU[this.dayGanZhi] ?? '甲子',
+      jieQi: this.getPrevJieQiName(),
     };
+  }
 
-    return result;
+  private getYueJiangData(): [string, string] {
+    const key = `${this.prevQi.toString()}${this.nextQi.toString()}`;
+    const data = YUE_JIANG[key];
+    if (!data) {
+      throw new Error(`月将映射缺失: ${key}`);
+    }
+    return data;
+  }
+
+  private getLiuJiaXunKong() {
+    return [...(QiMenConstants.LIU_JIA_XUN_KONG[this.xunShou] ?? [])];
+  }
+
+  private getLiuJiaXunKongGongWei() {
+    return [...(QiMenConstants.LIU_JIA_XUN_KONG_GONG[this.getLiuJiaXunKong().join(',')] ?? [])];
+  }
+
+  private getYiMa() {
+    return QiMenConstants.YI_MA[this.hourZhi];
+  }
+
+  private getSpecialMarks(map: Record<string, string>) {
+    const values = new Set<string>();
+    const collections = [this.tianPanQiYiTianQinYes, this.tianPanQiYiTianQinNo];
+
+    collections.forEach((list) => {
+      list.forEach((gan, index) => {
+        if (!gan) {
+          return;
+        }
+        const mark = map[`${gan}${index + 1}`];
+        if (mark) {
+          values.add(mark);
+        }
+      });
+    });
+
+    return [...values];
   }
 }
 
-/**
- * 创建奇门遁甲排盘
- */
 export function createQiMenPaiPan(settings: QiMenSettings): QiMenResult {
-  const paiPan = new QiMenPaiPan(settings);
-  return paiPan.getPaiPan();
+  return new QiMenPaiPan(settings).getPaiPan();
 }
