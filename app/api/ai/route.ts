@@ -72,6 +72,8 @@ interface UpstreamRequestSpec {
 
 const enableDebugLog =
   process.env.NODE_ENV !== 'production' && process.env.AI_PROXY_DEBUG !== '0';
+const DEFAULT_UPSTREAM_TIMEOUT_MS = 30_000;
+const DEFAULT_STREAM_UPSTREAM_TIMEOUT_MS = 300_000;
 
 const ALLOWED_MESSAGE_ROLES = new Set(['system', 'user', 'assistant']);
 const KNOWN_PROVIDERS = new Set<AIProvider>([
@@ -163,6 +165,17 @@ function getMaxMessageChars(): number {
 
 function getMaxTotalChars(): number {
   return Math.floor(parseNumber(process.env.AI_PROXY_MAX_TOTAL_CHARS, 120_000, 1, 500_000));
+}
+
+function getUpstreamTimeoutMs(stream: boolean): number {
+  return Math.floor(
+    parseNumber(
+      stream ? process.env.AI_PROXY_STREAM_TIMEOUT_MS : process.env.AI_PROXY_UPSTREAM_TIMEOUT_MS,
+      stream ? DEFAULT_STREAM_UPSTREAM_TIMEOUT_MS : DEFAULT_UPSTREAM_TIMEOUT_MS,
+      1_000,
+      3_600_000
+    )
+  );
 }
 
 function isCustomModeAvailable(): boolean {
@@ -701,6 +714,56 @@ function withRetryAfterHeader(response: NextResponse, retryAfterMs: number): Nex
   return response;
 }
 
+function mergeAbortSignals(...signals: Array<AbortSignal | null | undefined>): AbortSignal | undefined {
+  const activeSignals = signals.filter((signal): signal is AbortSignal => Boolean(signal));
+
+  if (activeSignals.length === 0) {
+    return undefined;
+  }
+
+  if (activeSignals.length === 1) {
+    return activeSignals[0];
+  }
+
+  const controller = new AbortController();
+
+  const abortWithReason = (signal: AbortSignal) => {
+    if (!controller.signal.aborted) {
+      controller.abort(signal.reason);
+    }
+  };
+
+  for (const signal of activeSignals) {
+    if (signal.aborted) {
+      abortWithReason(signal);
+      return controller.signal;
+    }
+
+    signal.addEventListener('abort', () => abortWithReason(signal), { once: true });
+  }
+
+  return controller.signal;
+}
+
+function getProxyErrorMessage(error: unknown): string {
+  if (
+    error instanceof DOMException &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError')
+  ) {
+    return '上游 AI 响应超时，请稍后重试，或缩短问题后再试。';
+  }
+
+  if (error instanceof Error) {
+    if (/timeout/i.test(error.message)) {
+      return '上游 AI 响应超时，请稍后重试，或缩短问题后再试。';
+    }
+
+    return error.message;
+  }
+
+  return '代理请求失败';
+}
+
 function isJsonRequest(request: NextRequest): boolean {
   const contentType = request.headers.get('content-type');
   return typeof contentType === 'string' && contentType.toLowerCase().startsWith('application/json');
@@ -835,7 +898,10 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers,
       body: requestBody,
-      signal: AbortSignal.timeout(30_000),
+      signal: mergeAbortSignals(
+        request.signal,
+        AbortSignal.timeout(getUpstreamTimeoutMs(config.stream))
+      ),
     });
 
     debugLog('[AI代理] 响应状态', response.status);
@@ -894,7 +960,7 @@ export async function POST(request: NextRequest) {
 
     return withRateLimitHeaders(
       NextResponse.json(
-        { error: error instanceof Error ? error.message : '代理请求失败' },
+        { error: getProxyErrorMessage(error) },
         { status: 500 }
       ),
       rateLimit

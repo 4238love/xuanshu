@@ -92,10 +92,15 @@ export default function AnalysisResult({ content, isStreaming = false }: Analysi
           if (!match) {
             break;
           }
-          items.push(`<li><span class="num">${match[1]}.</span><span class="item">${renderInline(match[2])}</span></li>`);
+          const itemText = match[2].trim();
+          if (itemText) {
+            items.push(`<li><span class="num">${match[1]}.</span><span class="item">${renderInline(itemText)}</span></li>`);
+          }
           i += 1;
         }
-        blocks.push(`<ol class="ordered">${items.join('')}</ol>`);
+        if (items.length > 0) {
+          blocks.push(`<ol class="ordered">${items.join('')}</ol>`);
+        }
         continue;
       }
 
@@ -107,10 +112,15 @@ export default function AnalysisResult({ content, isStreaming = false }: Analysi
           if (!match) {
             break;
           }
-          items.push(`<li><span class="bullet"></span><span class="item">${renderInline(match[1])}</span></li>`);
+          const itemText = match[1].trim();
+          if (itemText) {
+            items.push(`<li><span class="bullet"></span><span class="item">${renderInline(itemText)}</span></li>`);
+          }
           i += 1;
         }
-        blocks.push(`<ul class="unordered">${items.join('')}</ul>`);
+        if (items.length > 0) {
+          blocks.push(`<ul class="unordered">${items.join('')}</ul>`);
+        }
         continue;
       }
 

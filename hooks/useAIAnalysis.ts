@@ -19,6 +19,11 @@ import {
   shouldUseStreamingAIProxy,
 } from '@/lib/ai/config';
 import { buildSystemPrompt } from '@/lib/ai/analysisPrompts';
+import {
+  hasIncompleteStructuredTail,
+  isAbortError,
+  shouldRetryWithoutStreaming,
+} from '@/lib/ai/transport';
 
 type ChatMessagePayload = {
   role: AIMessage['role'];
@@ -47,10 +52,11 @@ const ROLE_CONSTRAINT_PROMPT = [
   '回答结束后不要附加固定的免责声明或模板化收尾。',
 ].join('');
 
-const AUTO_CONTINUE_PROMPT = '继续，接着上文输出，不要重复已经写过的内容。';
+const AUTO_CONTINUE_PROMPT =
+  '继续上一段未完成的内容，从中断处接着写，把当前结构和剩余要点全部写完后再结束，不要重复已经输出的内容。';
 const TRUNCATION_NOTICE = '\n\n[当前回复已触发模型长度限制，可继续追问“继续”获取剩余内容。]';
 const TRUNCATION_FINISH_REASONS = new Set(['length', 'max_tokens']);
-const MAX_AUTO_CONTINUE_ATTEMPTS = 1;
+const MAX_AUTO_CONTINUE_ATTEMPTS = 6;
 
 function composeSystemPrompt(system?: PaiPanSystem, data?: unknown): string {
   if (!system || data === undefined || data === null) {
@@ -148,7 +154,48 @@ function shouldContinueStream(result: StreamReadResult): boolean {
     return true;
   }
 
+  if (hasIncompleteStructuredTail(result.fullContent)) {
+    return true;
+  }
+
   return !result.sawDone && !result.finishReason && result.fullContent.trim().length > 0;
+}
+
+async function completeNonStreamingReply({
+  config,
+  mode,
+  messages,
+  signal,
+}: CompletionRequestInput): Promise<string> {
+  let accumulatedContent = '';
+  let requestMessages = [...messages];
+
+  for (let attempt = 0; attempt <= MAX_AUTO_CONTINUE_ATTEMPTS; attempt += 1) {
+    const segment = await requestNonStreamingChatCompletion({
+      config,
+      mode,
+      messages: requestMessages,
+      signal,
+    });
+
+    accumulatedContent += segment;
+
+    if (!hasIncompleteStructuredTail(accumulatedContent) || attempt === MAX_AUTO_CONTINUE_ATTEMPTS) {
+      break;
+    }
+
+    requestMessages = [
+      ...requestMessages,
+      { role: 'assistant', content: accumulatedContent },
+      { role: 'user', content: AUTO_CONTINUE_PROMPT },
+    ];
+  }
+
+  if (accumulatedContent.trim() && hasIncompleteStructuredTail(accumulatedContent)) {
+    return `${accumulatedContent}${TRUNCATION_NOTICE}`;
+  }
+
+  return accumulatedContent;
 }
 
 async function readStreamingChatResponse(
@@ -337,7 +384,12 @@ async function streamAssistantReply({
     ];
   }
 
-  if (accumulatedContent.trim() && (isTruncatedFinishReason(finishReason) || (!sawDone && !finishReason))) {
+  if (
+    accumulatedContent.trim() &&
+    (isTruncatedFinishReason(finishReason) ||
+      (!sawDone && !finishReason) ||
+      hasIncompleteStructuredTail(accumulatedContent))
+  ) {
     accumulatedContent = `${accumulatedContent}${TRUNCATION_NOTICE}`;
     onContent(accumulatedContent);
   }
@@ -390,18 +442,50 @@ export function useAIAnalysis(
         let fullContent = '';
 
         if (shouldUseStreamingAIProxy(config, mode)) {
-          const result = await streamAssistantReply({
-            config,
-            mode,
-            messages: requestMessages,
-            signal: abortControllerRef.current.signal,
-            onContent: (content) => {
-              updateAssistantMessage(assistantMessageId, content);
-            },
-          });
-          fullContent = result.fullContent;
+          try {
+            const result = await streamAssistantReply({
+              config,
+              mode,
+              messages: requestMessages,
+              signal: abortControllerRef.current.signal,
+              onContent: (content) => {
+                updateAssistantMessage(assistantMessageId, content);
+              },
+            });
+
+            if (result.fullContent.trim()) {
+              fullContent = result.fullContent;
+            } else {
+              console.warn(
+                '[AI analysis] Empty streaming response received; retrying without streaming.'
+              );
+              fullContent = await completeNonStreamingReply({
+                config,
+                mode,
+                messages: requestMessages,
+                signal: abortControllerRef.current.signal,
+              });
+              updateAssistantMessage(assistantMessageId, fullContent);
+            }
+          } catch (streamError) {
+            if (!shouldRetryWithoutStreaming(streamError)) {
+              throw streamError;
+            }
+
+            console.warn(
+              '[AI analysis] Streaming transport failed; retrying without streaming.',
+              streamError
+            );
+            fullContent = await completeNonStreamingReply({
+              config,
+              mode,
+              messages: requestMessages,
+              signal: abortControllerRef.current.signal,
+            });
+            updateAssistantMessage(assistantMessageId, fullContent);
+          }
         } else {
-          fullContent = await requestNonStreamingChatCompletion({
+          fullContent = await completeNonStreamingReply({
             config,
             mode,
             messages: requestMessages,
@@ -421,7 +505,7 @@ export function useAIAnalysis(
         setStatus('completed');
       } catch (err) {
         if (err instanceof Error) {
-          if (err.name === 'AbortError') {
+          if (isAbortError(err)) {
             setStatus('idle');
             removeMessage(assistantMessageId);
           } else {

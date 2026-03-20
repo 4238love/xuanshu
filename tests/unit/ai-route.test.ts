@@ -275,6 +275,54 @@ describe('/api/ai route', () => {
     });
   });
 
+  test('POST uses a longer upstream timeout budget for streaming requests', async () => {
+    const { POST } = await loadRouteModule({
+      NODE_ENV: 'production',
+      AI_OFFICIAL_BASE_URL: 'https://api.openai.com/v1',
+      AI_OFFICIAL_API_KEY: 'server-secret',
+      AI_OFFICIAL_MODEL: 'gpt-4o',
+      AI_PROXY_UPSTREAM_TIMEOUT_MS: '15000',
+      AI_PROXY_STREAM_TIMEOUT_MS: '180000',
+    });
+
+    const timeoutSpy = jest.spyOn(AbortSignal, 'timeout');
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n', {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      );
+    global.fetch = fetchMock as typeof fetch;
+
+    const nonStreamingResponse = await POST(
+      createJsonRequest({
+        mode: 'official',
+        stream: false,
+        messages: [{ role: 'user', content: 'hello' }],
+      })
+    );
+    const streamingResponse = await POST(
+      createJsonRequest({
+        mode: 'official',
+        stream: true,
+        messages: [{ role: 'user', content: 'hello again' }],
+      })
+    );
+
+    expect(nonStreamingResponse.status).toBe(200);
+    expect(streamingResponse.status).toBe(200);
+    expect(timeoutSpy).toHaveBeenCalledWith(15000);
+    expect(timeoutSpy).toHaveBeenCalledWith(180000);
+  });
+
   test('POST rejects non-JSON requests', async () => {
     const { POST } = await loadRouteModule({
       NODE_ENV: 'production',
