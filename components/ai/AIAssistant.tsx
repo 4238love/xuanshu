@@ -105,6 +105,20 @@ export default function AIAssistant({ system, chartData }: AIAssistantProps) {
       return;
     }
 
+    try {
+      const response = await fetch('/api/ai', { method: 'GET' });
+      if (response.ok) {
+        const data = (await response.json()) as { customModeAvailable?: boolean };
+        if (data.customModeAvailable === false) {
+          setCurrentConfigName('自定义代理已禁用');
+          setIsConfigValid(false);
+          return;
+        }
+      }
+    } catch {
+      // Ignore GET failures here and fall back to local validation state.
+    }
+
     setIsConfigValid(isAIConfigValid(config, mode));
     setCurrentConfigName(config.name?.trim() || '自定义配置');
   }, []);

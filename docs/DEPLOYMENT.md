@@ -632,3 +632,10 @@ pm2 restart suanming
 ---
 
 © 2024 易学排盘系统 · 部署文档
+## 2026-03 Operational Notes
+
+- `GET /api/health` is the readiness endpoint used by Docker health checks.
+- Keep `AI_ENABLE_CUSTOM_MODE=0` in production unless custom upstream proxying is explicitly required.
+- Browser-entered custom API keys are session-scoped and are no longer persisted to `localStorage`.
+- CI now verifies `npx tsc --noEmit --incremental false`, `npm test -- --runInBand`, and `npm run build`.
+- Detailed proxy, environment, and health-check guidance lives in [AI_PROXY_OPERATIONS.md](./AI_PROXY_OPERATIONS.md).

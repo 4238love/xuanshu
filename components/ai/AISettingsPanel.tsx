@@ -5,8 +5,11 @@ import {
   AIConfig,
   AIConfigMode,
   AIProvider,
+  AI_PROVIDER_MAX_TOKENS,
   AIProviderBaseURLs,
   AIProviderDefaultModels,
+  DEFAULT_AI_MAX_TOKENS,
+  DEFAULT_AI_TEMPERATURE,
 } from '@/types/ai';
 import {
   addConfig,
@@ -30,6 +33,17 @@ interface OfficialMeta {
   baseURLHost: string | null;
   model: string | null;
   thirdPartyHost: boolean;
+}
+
+interface ProxyStatusResponse {
+  officialConfigured?: boolean;
+  officialMeta?: OfficialMeta | null;
+  customModeAvailable?: boolean;
+  sessionOnlySecrets?: boolean;
+  rateLimit?: {
+    windowMs?: number;
+    maxRequests?: number;
+  };
 }
 
 const providerLabels: Record<AIProvider, string> = {
@@ -82,8 +96,8 @@ function createDraftConfig(index: number): AIConfig {
     baseURL: '',
     apiKey: '',
     model: '',
-    temperature: 0.7,
-    maxTokens: 1200000,
+    temperature: DEFAULT_AI_TEMPERATURE,
+    maxTokens: DEFAULT_AI_MAX_TOKENS,
     isDefault: false,
   };
 }
@@ -113,6 +127,9 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
   const [officialMeta, setOfficialMeta] = useState<OfficialMeta | null>(null);
   const [officialStatusError, setOfficialStatusError] = useState<string | null>(null);
   const [officialStatusLoading, setOfficialStatusLoading] = useState(false);
+  const [customModeAvailable, setCustomModeAvailable] = useState(true);
+  const [sessionOnlySecrets, setSessionOnlySecrets] = useState(true);
+  const [rateLimitHint, setRateLimitHint] = useState<{ windowMs: number; maxRequests: number } | null>(null);
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -138,17 +155,30 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
         throw new Error(`读取官方接口状态失败：${response.status}`);
       }
 
-      const data = (await response.json()) as {
-        officialConfigured?: boolean;
-        officialMeta?: OfficialMeta | null;
-      };
+      const data = (await response.json()) as ProxyStatusResponse;
       const isConfigured = Boolean(data.officialConfigured);
       setOfficialConfigured(isConfigured);
       setOfficialMeta(data.officialMeta ?? null);
+      setCustomModeAvailable(data.customModeAvailable !== false);
+      setSessionOnlySecrets(data.sessionOnlySecrets !== false);
+      setRateLimitHint(
+        data.rateLimit?.windowMs && data.rateLimit?.maxRequests
+          ? {
+              windowMs: data.rateLimit.windowMs,
+              maxRequests: data.rateLimit.maxRequests,
+            }
+          : null
+      );
 
-      if (!isConfigured && getAIConfigMode() === 'official') {
+      if (!isConfigured && getAIConfigMode() === 'official' && data.customModeAvailable !== false) {
         setAIConfigMode('custom');
         setConfigModeState('custom');
+        onSave?.();
+      }
+
+      if (data.customModeAvailable === false && getAIConfigMode() === 'custom') {
+        setAIConfigMode('official');
+        setConfigModeState('official');
         onSave?.();
       }
     } catch (error) {
@@ -167,6 +197,14 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
   }, []);
 
   const handleModeChange = (mode: AIConfigMode) => {
+    if (mode === 'custom' && !customModeAvailable) {
+      setTestResult({
+        success: false,
+        message: '当前环境已禁用自定义 API 代理，如需启用请在服务端配置 AI_ENABLE_CUSTOM_MODE=1。',
+      });
+      return;
+    }
+
     setConfigModeState(mode);
     setAIConfigMode(mode);
     setTestResult(null);
@@ -294,6 +332,14 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
       return;
     }
 
+    if (configMode === 'custom' && !customModeAvailable) {
+      setTestResult({
+        success: false,
+        message: '当前环境已禁用自定义 API 代理。',
+      });
+      return;
+    }
+
     setTesting(true);
     setTestResult(null);
     try {
@@ -311,6 +357,7 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
 
   const canSaveCustom = Boolean(
     configMode === 'custom' &&
+      customModeAvailable &&
       editingConfig &&
       editingConfig.apiKey.trim() &&
       editingConfig.baseURL.trim() &&
@@ -354,8 +401,9 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
             <button
               type="button"
               onClick={() => handleModeChange('custom')}
+              disabled={!customModeAvailable}
               className={cx(
-                'rounded-[24px] border p-4 text-left transition-all',
+                'rounded-[24px] border p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60',
                 configMode === 'custom'
                   ? 'border-[#4a2d19]/16 bg-[linear-gradient(180deg,rgba(255,251,243,0.96),rgba(249,240,227,0.92))] text-[#2f2118] shadow-[0_20px_36px_-24px_rgba(74,45,25,0.32)]'
                   : 'border-[rgba(117,76,40,0.14)] bg-white/78 text-[#5b4430] hover:border-[#a27140] hover:bg-[#fff7ed]'
@@ -368,6 +416,26 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
               </div>
             </button>
           </div>
+
+          {!customModeAvailable ? (
+            <div className="mt-4 rounded-[22px] border border-amber-300 bg-amber-50/80 p-4 text-sm leading-7 text-amber-900">
+              当前环境已禁用自定义 API 代理。如需在生产环境继续使用，请在服务端显式配置
+              `AI_ENABLE_CUSTOM_MODE=1`，并配合 `AI_ALLOWED_UPSTREAM_HOSTS` 限定可访问的上游主机。
+            </div>
+          ) : null}
+
+          {sessionOnlySecrets ? (
+            <div className="mt-4 rounded-[22px] border border-emerald-200 bg-emerald-50/80 p-4 text-sm leading-7 text-emerald-900">
+              自定义模式下的 `API Key` 只保存在当前浏览器会话，不再写入 `localStorage`。
+              关闭浏览器标签页后，如当前会话没有恢复密钥，需要重新输入一次。
+            </div>
+          ) : null}
+
+          {rateLimitHint ? (
+            <div className="mt-4 rounded-[22px] border border-[rgba(117,76,40,0.14)] bg-white/78 p-4 text-sm leading-7 text-[#5b4430]">
+              AI 代理当前速率限制：{rateLimitHint.windowMs / 1000} 秒内最多 {rateLimitHint.maxRequests} 次请求。
+            </div>
+          ) : null}
         </section>
 
         {configMode === 'official' ? (
@@ -641,7 +709,7 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
                           min="0"
                           max="2"
                           step="0.1"
-                          value={editingConfig.temperature ?? 0.7}
+                          value={editingConfig.temperature ?? DEFAULT_AI_TEMPERATURE}
                           onChange={(event) =>
                             setEditingConfig({
                               ...editingConfig,
@@ -657,9 +725,9 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
                         <input
                           type="number"
                           min="100"
-                          max="1200000"
+                          max={String(AI_PROVIDER_MAX_TOKENS[editingConfig.provider])}
                           step="100"
-                          value={editingConfig.maxTokens ?? 1200000}
+                          value={editingConfig.maxTokens ?? DEFAULT_AI_MAX_TOKENS}
                           onChange={(event) =>
                             setEditingConfig({
                               ...editingConfig,

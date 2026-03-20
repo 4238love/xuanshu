@@ -11,10 +11,12 @@ import {
 } from '@/types/ai';
 import {
   buildAIProxyRequestBody,
+  extractContentFromResponse,
   getAIConfig,
   getAIConfigMode,
   getAIResponseValidationError,
   isAIConfigValid,
+  shouldUseStreamingAIProxy,
 } from '@/lib/ai/config';
 import { buildSystemPrompt } from '@/lib/ai/analysisPrompts';
 
@@ -37,6 +39,8 @@ type StreamRequestInput = {
   onContent: (content: string) => void;
 };
 
+type CompletionRequestInput = Omit<StreamRequestInput, 'onContent'>;
+
 const ROLE_CONSTRAINT_PROMPT = [
   '你现在就是一位专业的中国命理师，只能以命理师身份回答问题，不要提及任何 AI、编程、模型或技术实现。',
   '回答时必须优先依据提供的排盘数据，不得脱离盘面泛泛而谈。',
@@ -47,7 +51,6 @@ const AUTO_CONTINUE_PROMPT = '继续，接着上文输出，不要重复已经�
 const TRUNCATION_NOTICE = '\n\n[当前回复已触发模型长度限制，可继续追问“继续”获取剩余内容。]';
 const TRUNCATION_FINISH_REASONS = new Set(['length', 'max_tokens']);
 const MAX_AUTO_CONTINUE_ATTEMPTS = 1;
-const DEFAULT_STREAM_MAX_TOKENS = 1200000;
 
 function composeSystemPrompt(system?: PaiPanSystem, data?: unknown): string {
   if (!system || data === undefined || data === null) {
@@ -240,10 +243,7 @@ async function requestStreamingChatCompletion({
         config,
         messages,
         temperature: mode === 'official' ? undefined : config.temperature ?? 0.7,
-        maxTokens:
-          mode === 'official'
-            ? DEFAULT_STREAM_MAX_TOKENS
-            : config.maxTokens ?? DEFAULT_STREAM_MAX_TOKENS,
+        maxTokens: mode === 'official' ? undefined : config.maxTokens,
         stream: true,
       })
     ),
@@ -260,6 +260,43 @@ async function requestStreamingChatCompletion({
   }
 
   return readStreamingChatResponse(response, onContent);
+}
+
+async function requestNonStreamingChatCompletion({
+  config,
+  mode,
+  messages,
+  signal,
+}: CompletionRequestInput): Promise<string> {
+  const response = await fetch('/api/ai', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(
+      buildAIProxyRequestBody({
+        mode,
+        config,
+        messages,
+        temperature: mode === 'official' ? undefined : config.temperature ?? 0.7,
+        maxTokens: mode === 'official' ? undefined : config.maxTokens,
+        stream: false,
+      })
+    ),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    const errorMessage =
+      (typeof errorData.error === 'string' ? errorData.error : null) ??
+      (typeof errorData.message === 'string' ? errorData.message : null) ??
+      `\u8bf7\u6c42\u5931\u8d25: ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  return extractContentFromResponse(config, data);
 }
 
 async function streamAssistantReply({
@@ -350,18 +387,30 @@ export function useAIAnalysis(
     ) => {
       try {
         abortControllerRef.current = new AbortController();
+        let fullContent = '';
 
-        const result = await streamAssistantReply({
-          config,
-          mode,
-          messages: requestMessages,
-          signal: abortControllerRef.current.signal,
-          onContent: (content) => {
-            updateAssistantMessage(assistantMessageId, content);
-          },
-        });
+        if (shouldUseStreamingAIProxy(config, mode)) {
+          const result = await streamAssistantReply({
+            config,
+            mode,
+            messages: requestMessages,
+            signal: abortControllerRef.current.signal,
+            onContent: (content) => {
+              updateAssistantMessage(assistantMessageId, content);
+            },
+          });
+          fullContent = result.fullContent;
+        } else {
+          fullContent = await requestNonStreamingChatCompletion({
+            config,
+            mode,
+            messages: requestMessages,
+            signal: abortControllerRef.current.signal,
+          });
+          updateAssistantMessage(assistantMessageId, fullContent);
+        }
 
-        const validationError = getAIResponseValidationError(result.fullContent);
+        const validationError = getAIResponseValidationError(fullContent);
         if (validationError) {
           removeMessage(assistantMessageId);
           setError(validationError);

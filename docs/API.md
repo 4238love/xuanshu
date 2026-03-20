@@ -494,3 +494,31 @@ import type {
   // ... 其他类型
 } from '@/types';
 ```
+## Runtime Endpoints
+
+### `GET /api/health`
+
+Returns a lightweight readiness payload for container and orchestrator health checks.
+
+### `GET /api/ai`
+
+Returns AI proxy status metadata for the frontend settings panel, including:
+
+- `officialConfigured`
+- `officialMeta`
+- `defaultMode`
+- `customModeAvailable`
+- `sessionOnlySecrets`
+- `rateLimit`
+
+### `POST /api/ai`
+
+AI proxy endpoint for official-mode and custom-mode requests.
+
+Request handling highlights:
+
+- same-origin requests only
+- in-memory per-IP rate limiting
+- server-side official credentials only
+- custom mode disabled by default in production
+- private/local upstream targets blocked unless explicitly allowed

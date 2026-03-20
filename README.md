@@ -345,3 +345,10 @@ npm start
 ---
 
 © 2024 易学排盘工具 · 传承传统文化 · 基于 Next.js 构建
+## Operational Update
+
+- Official AI credentials are server-side only.
+- Browser-entered custom API keys are stored in `sessionStorage` for the current browser session and are no longer persisted to `localStorage`.
+- Custom upstream proxying is disabled in production unless `AI_ENABLE_CUSTOM_MODE=1`.
+- Docker and Compose readiness checks now use `GET /api/health`.
+- See [docs/AI_PROXY_OPERATIONS.md](./docs/AI_PROXY_OPERATIONS.md) for deployment details.

@@ -36,9 +36,23 @@ export interface AIConfigStorage {
 
 // API配置存储键名
 export const AI_CONFIG_STORAGE_KEY = 'suanming_ai_config';
+export const AI_SESSION_SECRET_STORAGE_KEY = 'suanming_ai_config_session_secrets';
 
 // 默认AI配置模式
 export const DEFAULT_AI_CONFIG_MODE: AIConfigMode = 'official';
+export const DEFAULT_AI_TEMPERATURE = 0.7;
+export const DEFAULT_AI_MAX_TOKENS = 2000;
+export const AI_PROVIDER_MAX_TOKENS: Record<AIProvider, number> = {
+  openai: 16384,
+  claude: 8192,
+  qianfan: 8192,
+  dashscope: 8192,
+  hunyuan: 8192,
+  moonshot: 16384,
+  zhipu: 8192,
+  minimax: 8192,
+  custom: 8192,
+};
 
 // 默认AI配置（用于兼容旧版本）
 export const defaultAIConfig: AIConfig = {
@@ -48,8 +62,8 @@ export const defaultAIConfig: AIConfig = {
   baseURL: '',
   apiKey: '',
   model: '',
-  temperature: 0.7,
-  maxTokens: 1200000,
+  temperature: DEFAULT_AI_TEMPERATURE,
+  maxTokens: DEFAULT_AI_MAX_TOKENS,
   isDefault: true,
 };
 

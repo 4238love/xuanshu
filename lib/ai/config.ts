@@ -5,9 +5,13 @@ import {
   AIProvider,
   AIConfigStorage,
   AI_CONFIG_STORAGE_KEY,
+  AI_SESSION_SECRET_STORAGE_KEY,
   AIProviderBaseURLs,
   AIProviderDefaultModels,
   DEFAULT_AI_CONFIG_MODE,
+  DEFAULT_AI_TEMPERATURE,
+  DEFAULT_AI_MAX_TOKENS,
+  AI_PROVIDER_MAX_TOKENS,
   defaultAIConfig,
 } from '@/types/ai';
 
@@ -16,6 +20,140 @@ import {
  */
 function generateId(): string {
   return `config_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+type AISecretStorage = Record<string, string>;
+
+function normalizeTemperature(value: number | undefined): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_AI_TEMPERATURE;
+  }
+
+  return Math.min(2, Math.max(0, value as number));
+}
+
+function normalizeMaxTokens(provider: AIProvider, value: number | undefined): number {
+  const providerCap = AI_PROVIDER_MAX_TOKENS[provider] ?? AI_PROVIDER_MAX_TOKENS.custom;
+  const fallback = Math.min(DEFAULT_AI_MAX_TOKENS, providerCap);
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.min(providerCap, Math.floor(value as number)));
+}
+
+function normalizeConfig(config: AIConfig): AIConfig {
+  return {
+    ...config,
+    name: config.name.trim(),
+    baseURL: config.baseURL.trim(),
+    apiKey: config.apiKey.trim(),
+    model: config.model.trim(),
+    temperature: normalizeTemperature(config.temperature),
+    maxTokens: normalizeMaxTokens(config.provider, config.maxTokens),
+  };
+}
+
+function stripSecret(config: AIConfig): AIConfig {
+  return {
+    ...config,
+    apiKey: '',
+  };
+}
+
+function getAISecretStorage(): AISecretStorage {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const stored = sessionStorage.getItem(AI_SESSION_SECRET_STORAGE_KEY);
+    if (!stored) {
+      return {};
+    }
+
+    const parsed = JSON.parse(stored) as unknown;
+    if (!parsed || typeof parsed !== 'object') {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string'
+      )
+    );
+  } catch (error) {
+    console.error('读取 AI 会话密钥失败:', error);
+    return {};
+  }
+}
+
+function saveAISecretStorage(storage: AISecretStorage): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (Object.keys(storage).length === 0) {
+      sessionStorage.removeItem(AI_SESSION_SECRET_STORAGE_KEY);
+      return;
+    }
+
+    sessionStorage.setItem(AI_SESSION_SECRET_STORAGE_KEY, JSON.stringify(storage));
+  } catch (error) {
+    console.error('保存 AI 会话密钥失败:', error);
+  }
+}
+
+function setConfigSecret(id: string, apiKey: string): void {
+  if (!id || typeof window === 'undefined') return;
+
+  const trimmed = apiKey.trim();
+  const storage = getAISecretStorage();
+
+  if (trimmed) {
+    storage[id] = trimmed;
+  } else {
+    delete storage[id];
+  }
+
+  saveAISecretStorage(storage);
+}
+
+function deleteConfigSecret(id: string): void {
+  if (!id || typeof window === 'undefined') return;
+
+  const storage = getAISecretStorage();
+  if (!(id in storage)) {
+    return;
+  }
+
+  delete storage[id];
+  saveAISecretStorage(storage);
+}
+
+function hydrateConfigs(configs: AIConfig[]): { configs: AIConfig[]; migrated: boolean } {
+  const secrets = getAISecretStorage();
+  let migrated = false;
+
+  const hydrated = configs.map((config) => {
+    const secret = secrets[config.id];
+    const legacySecret = config.apiKey.trim();
+
+    if (!secret && legacySecret && config.id) {
+      secrets[config.id] = legacySecret;
+      migrated = true;
+    }
+
+    return normalizeConfig({
+      ...config,
+      apiKey: secret ?? legacySecret,
+    });
+  });
+
+  if (migrated) {
+    saveAISecretStorage(secrets);
+  }
+
+  return { configs: hydrated, migrated };
 }
 
 export interface BuildAIProxyRequestBodyInput {
@@ -46,15 +184,22 @@ export function getAIConfigStorage(): AIConfigStorage {
     const stored = localStorage.getItem(AI_CONFIG_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as Partial<AIConfigStorage>;
-      const configs = Array.isArray(parsed.configs) ? parsed.configs : [];
+      const parsedConfigs = Array.isArray(parsed.configs) ? (parsed.configs as AIConfig[]) : [];
+      const { configs, migrated } = hydrateConfigs(parsedConfigs);
       const fallbackMode: AIConfigMode =
         configs.length > 0 ? 'custom' : DEFAULT_AI_CONFIG_MODE;
 
-      return {
+      const resolvedStorage: AIConfigStorage = {
         configs,
         activeConfigId: typeof parsed.activeConfigId === 'string' ? parsed.activeConfigId : null,
         mode: parsed.mode === 'custom' || parsed.mode === 'official' ? parsed.mode : fallbackMode,
       };
+
+      if (migrated) {
+        saveAIConfigStorage(resolvedStorage);
+      }
+
+      return resolvedStorage;
     }
   } catch (error) {
     console.error('读取AI配置失败:', error);
@@ -119,7 +264,11 @@ function saveAIConfigStorage(storage: AIConfigStorage): void {
   if (typeof window === 'undefined') return;
 
   try {
-    localStorage.setItem(AI_CONFIG_STORAGE_KEY, JSON.stringify(storage));
+    const persistedStorage: AIConfigStorage = {
+      ...storage,
+      configs: storage.configs.map((config) => stripSecret(normalizeConfig(config))),
+    };
+    localStorage.setItem(AI_CONFIG_STORAGE_KEY, JSON.stringify(persistedStorage));
   } catch (error) {
     console.error('保存AI配置失败:', error);
   }
@@ -139,17 +288,18 @@ export function getAllConfigs(): AIConfig[] {
 export function addConfig(config: Omit<AIConfig, 'id' | 'createdAt'>): AIConfig {
   const storage = getAIConfigStorage();
 
-  const newConfig: AIConfig = {
+  const newConfig = normalizeConfig({
     ...config,
     id: generateId(),
     createdAt: Date.now(),
-  };
+  });
 
   // 如果是第一个配置，设为默认
   if (storage.configs.length === 0) {
     newConfig.isDefault = true;
   }
 
+  setConfigSecret(newConfig.id, newConfig.apiKey);
   storage.configs.push(newConfig);
 
   // 如果没有激活的配置，激活新配置
@@ -172,10 +322,12 @@ export function updateConfig(id: string, updates: Partial<AIConfig>): AIConfig |
     return null;
   }
 
-  storage.configs[index] = {
+  storage.configs[index] = normalizeConfig({
     ...storage.configs[index],
     ...updates,
-  };
+  });
+
+  setConfigSecret(id, storage.configs[index].apiKey);
 
   saveAIConfigStorage(storage);
   return storage.configs[index];
@@ -192,6 +344,7 @@ export function deleteConfig(id: string): boolean {
     return false;
   }
 
+  deleteConfigSecret(id);
   storage.configs.splice(index, 1);
 
   // 如果删除的是激活的配置，激活另一个
@@ -250,16 +403,19 @@ export function setDefaultConfig(id: string): boolean {
 export function saveAIConfig(config: AIConfig): void {
   const storage = getAIConfigStorage();
   const existingIndex = storage.configs.findIndex(c => c.id === config.id);
+  const normalized = normalizeConfig(config);
 
   if (existingIndex >= 0) {
-    storage.configs[existingIndex] = config;
+    storage.configs[existingIndex] = normalized;
   } else {
-    storage.configs.push(config);
+    storage.configs.push(normalized);
   }
+
+  setConfigSecret(normalized.id, normalized.apiKey);
 
   // 如果没有激活的配置，激活这个
   if (!storage.activeConfigId) {
-    storage.activeConfigId = config.id;
+    storage.activeConfigId = normalized.id;
   }
 
   saveAIConfigStorage(storage);
@@ -270,7 +426,7 @@ export function saveAIConfig(config: AIConfig): void {
  */
 export function updateAIConfig(updates: Partial<AIConfig>): AIConfig {
   const current = getAIConfig();
-  const updated = { ...current, ...updates, id: current.id };
+  const updated = normalizeConfig({ ...current, ...updates, id: current.id });
   saveAIConfig(updated);
   return updated;
 }
@@ -283,6 +439,7 @@ export function resetAIConfig(): void {
   storage.configs = [];
   storage.activeConfigId = null;
   storage.mode = DEFAULT_AI_CONFIG_MODE;
+  saveAISecretStorage({});
   saveAIConfigStorage(storage);
 }
 
@@ -294,7 +451,8 @@ export function isAIConfigValid(config: AIConfig, mode: AIConfigMode = getAIConf
     return true;
   }
 
-  return !!(config.apiKey && config.model && config.baseURL);
+  const normalized = normalizeConfig(config);
+  return !!(normalized.apiKey && normalized.model && normalized.baseURL);
 }
 
 /**
@@ -355,11 +513,12 @@ export function getAuthHeaders(config: AIConfig): Record<string, string> {
  * 不同provider的请求格式可能略有不同
  */
 export function buildRequestBody(config: AIConfig, messages: Array<{ role: string; content: string }>, stream = true): Record<string, unknown> {
+  const normalized = normalizeConfig(config);
   const baseBody = {
-    model: config.model,
+    model: normalized.model,
     messages,
-    temperature: config.temperature ?? 0.7,
-    max_tokens: config.maxTokens ?? 1200000,
+    temperature: normalized.temperature ?? DEFAULT_AI_TEMPERATURE,
+    max_tokens: normalized.maxTokens ?? DEFAULT_AI_MAX_TOKENS,
     stream,
   };
 
@@ -373,28 +532,28 @@ export function buildRequestBody(config: AIConfig, messages: Array<{ role: strin
 
     case 'claude':
       return {
-        model: config.model,
+        model: normalized.model,
         messages: messages.map(m => ({ role: m.role, content: m.content })),
-        max_tokens: config.maxTokens ?? 1200000,
+        max_tokens: normalized.maxTokens ?? DEFAULT_AI_MAX_TOKENS,
         stream,
       };
 
     case 'qianfan':
     case 'hunyuan':
       return {
-        model: config.model,
+        model: normalized.model,
         messages,
-        temperature: config.temperature ?? 0.7,
-        max_output_tokens: config.maxTokens ?? 1200000,
+        temperature: normalized.temperature ?? DEFAULT_AI_TEMPERATURE,
+        max_output_tokens: normalized.maxTokens ?? DEFAULT_AI_MAX_TOKENS,
         stream,
       };
 
     case 'dashscope':
       return {
-        model: config.model,
+        model: normalized.model,
         messages,
-        temperature: config.temperature ?? 0.7,
-        max_tokens: config.maxTokens ?? 1200000,
+        temperature: normalized.temperature ?? DEFAULT_AI_TEMPERATURE,
+        max_tokens: normalized.maxTokens ?? DEFAULT_AI_MAX_TOKENS,
         stream,
       };
 
@@ -505,13 +664,14 @@ export async function getQianfanAccessToken(apiKey: string, secretKey: string): 
  * 不同provider可能需要不同的URL格式
  */
 export function getAPIURL(config: AIConfig): string {
-  const baseURL = config.baseURL || AIProviderBaseURLs[config.provider];
+  const normalized = normalizeConfig(config);
+  const baseURL = normalized.baseURL || AIProviderBaseURLs[normalized.provider];
 
-  switch (config.provider) {
+  switch (normalized.provider) {
     case 'qianfan':
       // 百度文心一言：需要在URL中指定模型
       // 例如: https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/ernie-4.0-8k
-      return `${baseURL}/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/${config.model}`;
+      return `${baseURL}/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/${normalized.model}`;
     case 'hunyuan':
       // 腾讯混元
       return `${baseURL}/chat/completions`;
@@ -539,11 +699,10 @@ export function buildAIProxyRequestBody({
   maxTokens,
   stream = true,
 }: BuildAIProxyRequestBodyInput): Record<string, unknown> {
+  const normalized = normalizeConfig(config);
   const baseBody: Record<string, unknown> = {
     mode,
     messages,
-    temperature: temperature ?? config.temperature ?? 0.7,
-    maxTokens: maxTokens ?? config.maxTokens ?? 1200000,
     stream,
   };
 
@@ -553,10 +712,27 @@ export function buildAIProxyRequestBody({
 
   return {
     ...baseBody,
-    baseURL: config.baseURL,
-    apiKey: config.apiKey,
-    model: config.model,
+    provider: normalized.provider,
+    temperature: temperature ?? normalized.temperature ?? DEFAULT_AI_TEMPERATURE,
+    maxTokens: normalizeMaxTokens(
+      normalized.provider,
+      maxTokens ?? normalized.maxTokens ?? DEFAULT_AI_MAX_TOKENS
+    ),
+    baseURL: normalized.baseURL,
+    apiKey: normalized.apiKey,
+    model: normalized.model,
   };
+}
+
+export function shouldUseStreamingAIProxy(
+  config: AIConfig,
+  mode: AIConfigMode = getAIConfigMode()
+): boolean {
+  if (mode !== 'custom') {
+    return true;
+  }
+
+  return normalizeConfig(config).provider !== 'qianfan';
 }
 
 /**
@@ -567,15 +743,131 @@ export async function testAPIConnection(
   config: AIConfig,
   mode: AIConfigMode = getAIConfigMode()
 ): Promise<{ success: boolean; message: string }> {
+  const normalizedConfig = normalizeConfig(config);
+  const runProxyConnectionTest = async (): Promise<{ success: boolean; message: string }> => {
+    const probeToken = 'SUANMING_API_OK';
+
+    try {
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(
+          buildAIProxyRequestBody({
+            mode,
+            config: normalizedConfig,
+            messages: [
+              {
+                role: 'system',
+                content: `You are a connectivity probe. Reply with exactly ${probeToken}.`,
+              },
+              {
+                role: 'user',
+                content: `Reply with exactly ${probeToken}.`,
+              },
+            ],
+            temperature: normalizedConfig.temperature ?? DEFAULT_AI_TEMPERATURE,
+            maxTokens: normalizedConfig.maxTokens ?? DEFAULT_AI_MAX_TOKENS,
+            stream: false,
+          })
+        ),
+      });
+
+      if (!response.ok) {
+        const error = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const errorMessage =
+          (typeof error.error === 'string' ? error.error : null) ??
+          (typeof error.message === 'string' ? error.message : null) ??
+          '';
+        return {
+          success: false,
+          message: `\u8fde\u63a5\u5931\u8d25: ${response.status} ${errorMessage}`.trim(),
+        };
+      }
+
+      const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      const content = extractContentFromResponse(normalizedConfig, data);
+      const validationError = getAIResponseValidationError(content);
+
+      if (validationError) {
+        return { success: false, message: validationError };
+      }
+
+      if (content.includes(probeToken)) {
+        return { success: true, message: '\u8fde\u63a5\u6210\u529f\uff01' };
+      }
+
+      return { success: true, message: '\u8fde\u63a5\u6210\u529f\uff0c\u6a21\u578b\u5df2\u8fd4\u56de\u6709\u6548\u5185\u5bb9\u3002' };
+    } catch (error) {
+      return {
+        success: false,
+        message: `\u8fde\u63a5\u5931\u8d25: ${error instanceof Error ? error.message : '\u672a\u77e5\u9519\u8bef'}`,
+      };
+    }
+  };
+  const qianfanProxyTest = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(
+          buildAIProxyRequestBody({
+            mode,
+            config: normalizedConfig,
+            messages: [
+              { role: 'system', content: '浣犳槸鍛界悊鍒嗘瀽鍔╂墜銆傝鍙緭鍑衡€滃懡鐞嗘帴鍙ｅ彲鐢ㄢ€濊繖鍏釜瀛椼€?' },
+              { role: 'user', content: '璇峰彧杈撳嚭锛氬懡鐞嗘帴鍙ｅ彲鐢?' },
+            ],
+            temperature: normalizedConfig.temperature ?? DEFAULT_AI_TEMPERATURE,
+            maxTokens: normalizedConfig.maxTokens ?? DEFAULT_AI_MAX_TOKENS,
+            stream: false,
+          })
+        ),
+      });
+
+      if (response.ok) {
+        const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const content = extractContentFromResponse(normalizedConfig, data);
+        const validationError = getAIResponseValidationError(content);
+
+        if (validationError) {
+          return { success: false, message: validationError };
+        }
+
+        return {
+          success: true,
+          message: content.includes('鍛界悊鎺ュ彛鍙敤')
+            ? '杩炴帴鎴愬姛锛?'
+            : '杩炴帴鎴愬姛锛屾ā鍨嬪凡杩斿洖鏈夋晥鍐呭銆?',
+        };
+      }
+
+      const error = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      const errorMessage =
+        (typeof error.error === 'string' ? error.error : null) ??
+        (typeof error.message === 'string' ? error.message : null) ??
+        '';
+      return { success: false, message: `杩炴帴澶辫触: ${response.status} ${errorMessage}` };
+    } catch (error) {
+      return { success: false, message: `杩炴帴澶辫触: ${error instanceof Error ? error.message : '鏈煡閿欒'}` };
+    }
+  };
+  if (mode === 'custom' && normalizedConfig.provider === 'qianfan' && isAIConfigValid(config, mode)) {
+    return runProxyConnectionTest();
+  }
+
   if (mode === 'custom' && !isAIConfigValid(config, mode)) {
     return { success: false, message: '请填写完整的自定义API配置信息' };
   }
 
   // 百度文心一言特殊处理：需要先获取access_token
-  if (mode === 'custom' && config.provider === 'qianfan') {
+  if (mode === 'custom' && normalizedConfig.provider === 'qianfan') {
     // apiKey格式应该是 "AK;SK" 或者需要用户分别填写AK和SK
     // 这里假设apiKey字段中AK和SK用分号分隔
-    const [apiKey, secretKey] = config.apiKey.split(';');
+    const [apiKey, secretKey] = normalizedConfig.apiKey.split(';');
     if (!apiKey || !secretKey) {
       return { success: false, message: '百度文心一言需要填写API Key和Secret Key，格式：API Key;Secret Key' };
     }
@@ -584,13 +876,13 @@ export async function testAPIConnection(
       return { success: false, message: '获取access_token失败，请检查AK/SK是否正确' };
     }
     try {
-      const url = `https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/${config.model}?access_token=${accessToken}`;
+      const url = `https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/${normalizedConfig.model}?access_token=${accessToken}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [{ role: 'user', content: 'Hi' }],
-          temperature: 0.7,
+          temperature: DEFAULT_AI_TEMPERATURE,
         }),
       });
       if (response.ok) {
@@ -614,13 +906,13 @@ export async function testAPIConnection(
       body: JSON.stringify(
         buildAIProxyRequestBody({
           mode,
-          config,
+          config: normalizedConfig,
           messages: [
             { role: 'system', content: '你是命理分析助手。请只输出“命理接口可用”这六个字。' },
             { role: 'user', content: '请只输出：命理接口可用' },
           ],
-          temperature: config.temperature ?? 0.7,
-          maxTokens: config.maxTokens ?? 1200000,
+          temperature: normalizedConfig.temperature ?? DEFAULT_AI_TEMPERATURE,
+          maxTokens: normalizedConfig.maxTokens ?? DEFAULT_AI_MAX_TOKENS,
           stream: false,
         })
       ),
@@ -628,7 +920,7 @@ export async function testAPIConnection(
 
     if (response.ok) {
       const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-      const content = extractContentFromResponse(config, data);
+      const content = extractContentFromResponse(normalizedConfig, data);
       const validationError = getAIResponseValidationError(content);
 
       if (validationError) {

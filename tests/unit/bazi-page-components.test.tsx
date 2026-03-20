@@ -67,7 +67,7 @@ describe('八字页面组件', () => {
 
     expect(allSections).toHaveLength(5);
     expect(overviewLinks).toHaveLength(5);
-    expect(markup).toContain('Display Control');
+    expect(markup).toContain('结果控制');
   });
 
   test('AIChatWindow 输出聊天日志与图标按钮无障碍标签', () => {
@@ -83,6 +83,9 @@ describe('八字页面组件', () => {
         ]}
         status="idle"
         error={null}
+        systemLabel="八字"
+        isConfigValid={false}
+        onOpenSettings={() => {}}
         onSendMessage={() => {}}
         onClear={() => {}}
       />
@@ -90,8 +93,8 @@ describe('八字页面组件', () => {
 
     expect(markup).toContain('role="log"');
     expect(markup).toContain('aria-live="polite"');
-    expect(markup).toContain('aria-label="输入发送给 AI 助手的问题"');
-    expect(markup).toContain('aria-label="清空对话"');
+    expect(markup).toContain('aria-label="输入发送给 AI 的问题"');
+    expect(markup).toContain('清空对话');
     expect(markup).toContain('aria-label="发送消息"');
   });
 });
