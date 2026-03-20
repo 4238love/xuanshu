@@ -187,6 +187,39 @@ describe('/api/ai route', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  test('POST allows explicitly enabled custom upstream hosts via wildcard allowlist', async () => {
+    const { POST } = await loadRouteModule({
+      NODE_ENV: 'production',
+      AI_ENABLE_CUSTOM_MODE: '1',
+      AI_ALLOWED_UPSTREAM_HOSTS: '*',
+    });
+
+    const fetchMock = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    global.fetch = fetchMock as typeof fetch;
+
+    const response = await POST(
+      createJsonRequest({
+        mode: 'custom',
+        baseURL: 'https://custom.gateway.example/v1',
+        apiKey: 'custom-secret',
+        model: 'model-x',
+        stream: false,
+        messages: [{ role: 'user', content: 'hello' }],
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://custom.gateway.example/v1/chat/completions');
+  });
+
   test('POST uses server-side official config even if client supplies custom fields', async () => {
     const { POST } = await loadRouteModule({
       NODE_ENV: 'production',

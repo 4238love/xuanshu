@@ -218,7 +218,14 @@ function getAllowedCustomHosts(): Set<string> {
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 
-  return new Set([...TRUSTED_UPSTREAM_HOSTS, ...fromEnv]);
+  const allowedHosts = new Set([...TRUSTED_UPSTREAM_HOSTS, ...fromEnv]);
+  const officialHost = getBaseURLHost(process.env.AI_OFFICIAL_BASE_URL?.trim() ?? '');
+
+  if (officialHost) {
+    allowedHosts.add(officialHost.toLowerCase());
+  }
+
+  return allowedHosts;
 }
 
 function validateUpstreamBaseURL(baseURL: string, mode: AIConfigMode): string | null {
@@ -244,7 +251,9 @@ function validateUpstreamBaseURL(baseURL: string, mode: AIConfigMode): string | 
 
   if (mode === 'custom' && process.env.NODE_ENV === 'production') {
     const allowedHosts = getAllowedCustomHosts();
-    if (!allowedHosts.has(url.host.toLowerCase())) {
+    const targetHost = url.host.toLowerCase();
+
+    if (!allowedHosts.has('*') && !allowedHosts.has(targetHost)) {
       return '当前环境未允许该自定义上游地址';
     }
   }
