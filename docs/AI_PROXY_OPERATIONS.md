@@ -41,6 +41,7 @@ AI proxy endpoint for both official and custom-mode requests.
 - The browser no longer persists custom API keys to `localStorage`.
 - Custom API keys are stored in `sessionStorage` for the current browser session only.
 - Requests must be same-origin. Cross-site calls are rejected.
+- When reverse proxies or load balancers rewrite `Host` / `X-Forwarded-Proto`, set `AI_PROXY_ALLOWED_ORIGINS` to the public site origin(s) that should be accepted by `/api/ai`.
 - The proxy applies an in-memory per-IP rate limit.
 - The proxy rejects non-JSON requests and oversized message payloads.
 - Private, loopback, and local-network upstream hosts are blocked unless `AI_ALLOW_PRIVATE_UPSTREAMS=1`.
@@ -57,6 +58,7 @@ AI_OFFICIAL_TEMPERATURE=0.7
 AI_OFFICIAL_MAX_TOKENS=2000
 
 AI_ENABLE_CUSTOM_MODE=0
+AI_PROXY_ALLOWED_ORIGINS=
 AI_ALLOWED_UPSTREAM_HOSTS=
 AI_ALLOW_PRIVATE_UPSTREAMS=0
 AI_PROXY_RATE_LIMIT_WINDOW_MS=60000
@@ -71,6 +73,7 @@ AI_PROXY_MAX_TOTAL_CHARS=120000
 
 - `AI_PROXY_UPSTREAM_TIMEOUT_MS` applies to normal non-streaming proxy calls.
 - `AI_PROXY_STREAM_TIMEOUT_MS` applies to streaming chat calls and should usually be higher, otherwise long replies may be cut off mid-stream.
+- `AI_PROXY_ALLOWED_ORIGINS` accepts a comma-separated list such as `https://app.example.com,https://www.app.example.com`.
 
 ## Container Readiness
 

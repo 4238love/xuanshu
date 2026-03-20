@@ -117,6 +117,47 @@ describe('/api/ai route', () => {
     expect(response.headers.get('X-RateLimit-Limit')).toBeTruthy();
   });
 
+  test('POST allows configured public origins when reverse-proxy headers are rewritten', async () => {
+    const { POST } = await loadRouteModule({
+      NODE_ENV: 'production',
+      AI_OFFICIAL_BASE_URL: 'https://api.openai.com/v1',
+      AI_OFFICIAL_API_KEY: 'server-secret',
+      AI_OFFICIAL_MODEL: 'gpt-4o',
+      AI_PROXY_ALLOWED_ORIGINS: 'https://app.example.com, https://www.app.example.com',
+    });
+
+    const fetchMock = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    global.fetch = fetchMock as typeof fetch;
+
+    const serializedBody = JSON.stringify({
+      mode: 'official',
+      stream: false,
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    const response = await POST(
+      new Request('http://127.0.0.1:3000/api/ai', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': String(Buffer.byteLength(serializedBody)),
+          'x-forwarded-host': '127.0.0.1:3000',
+          'x-forwarded-proto': 'http',
+          origin: 'https://app.example.com',
+        },
+        body: serializedBody,
+      }) as unknown as Parameters<AIRouteModule['POST']>[0]
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   test('POST keeps custom mode disabled in production unless explicitly enabled', async () => {
     const { POST } = await loadRouteModule({
       NODE_ENV: 'production',

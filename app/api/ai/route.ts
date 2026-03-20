@@ -241,6 +241,35 @@ function getAllowedCustomHosts(): Set<string> {
   return allowedHosts;
 }
 
+function normalizeOrigin(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getConfiguredAllowedOrigins(): Set<string> {
+  const allowedOrigins = new Set<string>();
+  const configuredOrigins = (process.env.AI_PROXY_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  for (const origin of configuredOrigins) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (normalizedOrigin) {
+      allowedOrigins.add(normalizedOrigin);
+    }
+  }
+
+  return allowedOrigins;
+}
+
 function validateUpstreamBaseURL(baseURL: string, mode: AIConfigMode): string | null {
   let url: URL;
 
@@ -605,34 +634,45 @@ function resolveUpstreamConfig(
   };
 }
 
-function getExpectedOrigin(request: NextRequest): string | null {
+function getDerivedRequestOrigin(request: NextRequest): string | null {
   const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
 
   if (!host) {
-    return null;
+    return normalizeOrigin(request.url);
   }
 
   const protocol =
     request.headers.get('x-forwarded-proto') ??
     (process.env.NODE_ENV === 'production' ? 'https' : 'http');
 
-  return `${protocol}://${host}`;
+  return normalizeOrigin(`${protocol}://${host}`) ?? normalizeOrigin(request.url);
+}
+
+function getAllowedRequestOrigins(request: NextRequest): Set<string> {
+  const allowedOrigins = getConfiguredAllowedOrigins();
+  const derivedOrigin = getDerivedRequestOrigin(request);
+
+  if (derivedOrigin) {
+    allowedOrigins.add(derivedOrigin);
+  }
+
+  return allowedOrigins;
 }
 
 function isSameOriginRequest(request: NextRequest): boolean {
-  const expectedOrigin = getExpectedOrigin(request);
-  if (!expectedOrigin) {
+  const allowedOrigins = getAllowedRequestOrigins(request);
+  if (allowedOrigins.size === 0) {
     return true;
   }
 
-  const origin = request.headers.get('origin');
+  const origin = normalizeOrigin(request.headers.get('origin'));
   if (origin) {
-    return origin === expectedOrigin;
+    return allowedOrigins.has(origin);
   }
 
-  const referer = request.headers.get('referer');
-  if (referer) {
-    return referer === expectedOrigin || referer.startsWith(`${expectedOrigin}/`);
+  const refererOrigin = normalizeOrigin(request.headers.get('referer'));
+  if (refererOrigin) {
+    return allowedOrigins.has(refererOrigin);
   }
 
   return process.env.NODE_ENV !== 'production';
