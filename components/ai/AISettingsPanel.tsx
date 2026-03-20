@@ -1,6 +1,6 @@
 'use client';
 
-import { KeyboardEvent, useEffect, useState } from 'react';
+import { KeyboardEvent, useCallback, useEffect, useState } from 'react';
 import {
   AIConfig,
   AIConfigMode,
@@ -135,7 +135,7 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const refreshCustomState = () => {
+  const refreshCustomState = useCallback(() => {
     const allConfigs = getAllConfigs();
     const currentConfig = getAIConfig();
     const hasSavedConfigs = allConfigs.length > 0;
@@ -143,9 +143,9 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
     setConfigs(allConfigs);
     setActiveConfigId(hasSavedConfigs ? currentConfig.id : null);
     setEditingConfig(hasSavedConfigs ? currentConfig : null);
-  };
+  }, []);
 
-  const loadOfficialStatus = async () => {
+  const loadOfficialStatus = useCallback(async () => {
     setOfficialStatusLoading(true);
     setOfficialStatusError(null);
 
@@ -188,13 +188,13 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
     } finally {
       setOfficialStatusLoading(false);
     }
-  };
+  }, [onSave]);
 
   useEffect(() => {
     setConfigModeState(getAIConfigMode());
     refreshCustomState();
     void loadOfficialStatus();
-  }, []);
+  }, [loadOfficialStatus, refreshCustomState]);
 
   const handleModeChange = (mode: AIConfigMode) => {
     if (mode === 'custom' && !customModeAvailable) {

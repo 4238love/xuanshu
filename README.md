@@ -1,354 +1,254 @@
-# 易学排盘工具
+# 玄数排盘
 
-基于 Next.js 构建的现代化易学排盘系统，传承传统文化，以现代科技呈现古老玄学。
+基于 Next.js 16、React 19、TypeScript 构建的中文术数排盘工作台。当前仓库已经实现 6 个独立排盘模块、统一的 AI 批注能力、健康检查接口，以及可直接用于容器化部署的 `Dockerfile`、`docker-compose.yml` 和 `Caddyfile`。
 
-## ✨ 功能特色
+## 当前状态
 
-### 已实现功能
+- `npm run lint` 已通过，ESLint 9 使用 Flat Config。
+- `npx tsc --noEmit --incremental false` 已通过。
+- `npm test -- --runInBand` 已通过，默认 Jest 测试集可正常运行。
+- `npm run build` 已通过，可生成 Next.js standalone 生产构建。
+- 当前路由包含 6 个静态排盘页面和 2 个服务端 API 路由：`/api/ai`、`/api/health`。
 
-- ✅ **八字排盘** - 四柱八字，推算命理
-  - 完整的干支计算
-  - 五行统计分析
-  - 纳音、空亡计算
-  - 喜用神推算
-  - 神煞标注
+## 功能概览
 
-- ✅ **六爻排盘** - 六爻占卜，预测吉凶
-  - 本卦、变卦计算
-  - 互卦、错卦、综卦
-  - 世应定位
-  - 自动起卦
+| 模块 | 路由 | 当前能力 |
+| --- | --- | --- |
+| 首页 | `/` | 六大模块入口，统一工作台导航 |
+| 八字排盘 | `/bazi` | 四柱、十神、五行、喜用神、大运流年、真太阳时、文本复制、JSON/图片/打印导出 |
+| 六爻排盘 | `/liuyao` | 自动起卦、日期起卦、手动起卦，本卦/变卦/互卦/综卦，六亲六神，神煞开关 |
+| 梅花易数 | `/meihua` | 本卦、变卦、互卦、错卦、综卦，体用关系，爻辞展示 |
+| 大六壬 | `/daliuren` | 天地盘、四课三传、月将/月将神、课体总览 |
+| 奇门遁甲 | `/qimen` | 转盘奇门、九宫、值符值使、三奇六仪，年/月/日/时家高级配置 |
+| 紫微斗数 | `/ziwei` | 十二宫、四化、大限小限、五行局与节气口径等高级参数 |
+| AI 批注 | 各结果页浮层 | 官方模式 + 自定义模式，流式回复，会话级密钥存储，代理安全限制 |
 
-- ✅ **梅花易数** - 心易占卜，随机应变
-  - 时间起卦
-  - 卦象变化分析
-  - 动爻识别
-  - 多重卦象展示
+## 当前实现重点
 
-- ✅ **大六壬排盘** - 三式之首，神机妙算
-  - 地盘、天盘、神盘
-  - 四课三传计算
-  - 十二神将排布
-  - 课式类型判断
+- 6 个排盘模块都已经有独立页面和结果展示，不再强行共用同一套表单叙事。
+- 八字模块的能力最完整，除了命盘分析，还支持真太阳时、神煞和干支留意开关、导出与打印。
+- AI 能力通过 `app/api/ai` 统一代理，前端结果页通过浮层助手发起分析请求。
+- 健康检查接口为 `GET /api/health`，Docker 与 Compose 都依赖它做 readiness 检查。
+- `next.config.ts` 已启用 `output: "standalone"`，适合 Node 单容器部署。
 
-- ✅ **奇门遁甲** - 帝王之学，运筹帷幄
-  - 转盘奇门实现
-  - 九宫格局展示
-  - 天地人神四盘
-  - 阴阳遁局计算
+## 技术栈
 
-- ✅ **紫微斗数** - 星曜命盘，推演人生
-  - 命宫身宫定位
-  - 十二宫位排布
-  - 四化星计算
-  - 五行局判断
+- Next.js `16.1.6` + App Router
+- React `19.2.3`
+- TypeScript `5`
+- Tailwind CSS `4`
+- `lunar-javascript` 农历与干支计算
+- Jest + ts-jest 测试
+- Docker + Caddy 容器化部署
 
-- ✅ **AI 智能助手** - AI 辅助分析
-  - AI 分析排盘结果
-  - 可配置的 AI 设置
-  - 支持自定义 API
+## 目录结构
 
-## 🎨 设计特点
+```text
+app/                    Next.js 页面与 API 路由
+components/
+  ai/                   AI 助手与设置面板
+  shared/               通用共享组件
+  ui/                   表单、结果页、导出、布局组件
+hooks/                  自定义 React Hooks
+lib/
+  ai/                   AI 配置、请求组装、传输处理
+  bazi/                 八字算法
+  liuyao/               六爻算法
+  meihua/               梅花易数算法
+  daliuren/             大六壬算法
+  qimen/                奇门遁甲算法
+  ziwei/                紫微斗数算法
+  utils/                日期、真太阳时、通用计算工具
+types/                  TypeScript 类型定义
+tests/                  Jest 测试与对比测试
+docs/                   API、部署、运维、设计等文档
+Dockerfile              生产镜像构建
+docker-compose.yml      应用 + Caddy 编排
+Caddyfile               反向代理与 HTTPS 配置
+```
 
-- **现代化界面** - 采用渐变色彩和流畅动画
-- **响应式设计** - 完美适配桌面和移动设备
-- **直观交互** - 简洁明了的操作流程
-- **精美展示** - 卡片式布局，信息层次分明
-- **独特配色** - 每个排盘系统都有专属渐变主题
+## 本地开发
 
-## 🚀 技术栈
+### 环境要求
 
-- **框架**: Next.js 16 (App Router)
-- **语言**: TypeScript
-- **样式**: Tailwind CSS 4
-- **农历库**: lunar-javascript
-- **构建工具**: Turbopack
+- Node.js `20+`
+- npm `9+`
+- 可选: Docker / Docker Compose
 
-## 📦 安装运行
+### 启动步骤
 
-### 安装依赖
+在仓库根目录执行:
 
 ```bash
 npm install
-```
-
-### 开发模式
-
-```bash
+cp .env.example .env
 npm run dev
 ```
 
-访问 http://localhost:3000
-
-### 开发启动故障排查
-
-若 `npm run dev` 启动失败（例如 Turbopack 报错）：
-
-```bash
-# 1) 清理 Next.js 本地缓存后重试
-rm -rf .next
-npm run dev
-```
-
-Windows PowerShell 可使用：
+Windows PowerShell:
 
 ```powershell
-Remove-Item -Recurse -Force .next
+npm install
+Copy-Item .env.example .env
 npm run dev
 ```
 
-如仍有问题，可临时切换为 Webpack 模式：
+启动后访问 `http://localhost:3000`。
+
+说明:
+
+- 即使未配置官方 AI 环境变量，六大排盘页面也可以正常使用。
+- 未配置 AI 时，结果页里的 AI 助手会显示为待配置状态。
+
+### 常用脚本
+
+| 命令 | 说明 |
+| --- | --- |
+| `npm run dev` | 启动开发服务器 |
+| `npm run build` | 构建生产包 |
+| `npm start` | 启动生产服务器 |
+| `npm run lint` | 运行 lint |
+| `npm test` | 运行全部 Jest 测试 |
+| `npm run test:unit` | 运行单元测试 |
+| `npm run test:integration` | 运行集成测试 |
+| `npm run test:comparison` | 运行对比测试 |
+| `npm run test:coverage` | 生成覆盖率报告 |
+| `npx tsc --noEmit --incremental false` | 运行 TypeScript 类型检查 |
+
+推荐在提交前至少执行:
 
 ```bash
-npx next dev --webpack
+npm run lint
+npx tsc --noEmit --incremental false
+npm test -- --runInBand
+npm run build
 ```
 
-### 生产构建
+## AI 配置与安全模型
+
+AI 代理入口位于 `app/api/ai/route.ts`，目前支持两种模式:
+
+- `official`: 只读取服务端环境变量中的 `AI_OFFICIAL_*` 配置。
+- `custom`: 浏览器端维护多套 provider 配置，通过代理转发到外部模型服务。
+
+当前代码里已内置或兼容的 provider:
+
+- `openai`
+- `claude`
+- `qianfan`
+- `dashscope`
+- `hunyuan`
+- `moonshot`
+- `zhipu`
+- `minimax`
+- `custom`
+
+安全策略:
+
+- 官方模式 API Key 只保存在服务端环境变量中。
+- 浏览器输入的自定义 API Key 只写入 `sessionStorage`，不再持久化到 `localStorage`。
+- `POST /api/ai` 仅接受同源请求。
+- 代理内置按 IP 的内存限流、请求体大小限制、消息条数限制、消息长度限制。
+- 私网、回环、本地域名上游默认被拦截，除非显式开启 `AI_ALLOW_PRIVATE_UPSTREAMS=1`。
+- 生产环境默认禁用自定义上游代理，只有配置 `AI_ENABLE_CUSTOM_MODE=1` 后才会开启。
+
+最小可用环境变量示例:
+
+```env
+AI_OFFICIAL_BASE_URL=https://api.openai.com/v1
+AI_OFFICIAL_API_KEY=your_server_side_key
+AI_OFFICIAL_MODEL=gpt-4o
+AI_OFFICIAL_TEMPERATURE=0.7
+AI_OFFICIAL_MAX_TOKENS=2000
+
+AI_ENABLE_CUSTOM_MODE=0
+AI_PROXY_ALLOWED_ORIGINS=
+AI_ALLOWED_UPSTREAM_HOSTS=
+AI_ALLOW_PRIVATE_UPSTREAMS=0
+```
+
+完整变量列表见 [.env.example](./.env.example) 和 [docs/AI_PROXY_OPERATIONS.md](./docs/AI_PROXY_OPERATIONS.md)。
+
+## API 与运维接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/health` | 健康检查与 readiness 探针 |
+| `GET` | `/api/ai` | 返回 AI 官方配置状态、默认模式、请求限制等元信息 |
+| `POST` | `/api/ai` | AI 代理请求入口，支持流式与非流式回复 |
+
+## 测试
+
+Jest 测试主要位于以下目录:
+
+- `tests/unit`
+- `tests/integration`
+- `tests/comparison`
+
+默认 `npm test` 只会执行 `tests/` 下匹配 `*.test.ts` 和 `*.test.tsx` 的 Jest 用例。
+
+仓库里还保留了一批脚本式校验文件，例如 `tests/test-bazi.js`、`tests/test-liuyao-complete.ts`、`tests/run-tests.ts`。这些文件更适合做算法验证、输出比对或手工调试，不属于默认 Jest 门禁。
+
+建议在提交前至少执行:
 
 ```bash
+npm run lint
+npx tsc --noEmit --incremental false
+npm test -- --runInBand
+npm run build
+```
+
+## 部署
+
+### Node 直接部署
+
+```bash
+npm install
 npm run build
 npm start
 ```
 
-## 📁 项目结构
-
-```
-new/
-├── app/                    # Next.js 应用目录
-│   ├── page.tsx           # 首页
-│   ├── bazi/              # 八字排盘页面
-│   ├── liuyao/            # 六爻排盘页面
-│   ├── meihua/            # 梅花易数页面
-│   ├── daliuren/          # 大六壬页面
-│   ├── qimen/             # 奇门遁甲页面
-│   └── ziwei/             # 紫微斗数页面
-├── lib/                   # 核心逻辑库
-│   ├── bazi/              # 八字排盘逻辑
-│   ├── liuyao/            # 六爻排盘逻辑
-│   ├── meihua/            # 梅花易数逻辑
-│   ├── daliuren/          # 大六壬排盘逻辑
-│   ├── qimen/             # 奇门遁甲排盘逻辑
-│   ├── ziwei/             # 紫微斗数排盘逻辑
-│   ├── utils/             # 工具函数
-│   └── constants.ts       # 常量定义
-├── types/                 # TypeScript 类型定义
-│   ├── index.ts           # 主要类型
-│   └── lunar-javascript.d.ts  # 农历库类型声明
-└── components/            # React 组件（待扩展）
-```
-
-## 🎯 使用说明
-
-### 八字排盘
-
-1. 输入姓名（可选）和占事（可选）
-2. 选择性别
-3. 选择日期类型（公历/农历）
-4. 输入出生日期时间（格式：2024-01-01 08:30:00）
-5. 点击"开始排盘"查看结果
-
-### 六爻排盘
-
-1. 输入姓名（可选）和占事（必填）
-2. 选择性别和日期类型
-3. 输入起卦日期时间
-4. 系统自动生成卦象
-5. 查看本卦、变卦、互卦等详细信息
-
-### 梅花易数
-
-1. 输入姓名（可选）和占事（必填）
-2. 选择性别和日期类型
-3. 输入起卦日期时间
-4. 系统根据时间自动起卦
-5. 查看卦象及动爻信息
-
-### 大六壬排盘
-
-1. 输入姓名（可选）和占事（必填）
-2. 选择性别和日期类型
-3. 输入起课日期时间
-4. 查看地盘、天盘、神盘
-5. 分析四课三传
-
-### 奇门遁甲
-
-1. 输入姓名（可选）和占事（必填）
-2. 选择性别和日期类型
-3. 输入起局日期时间
-4. 查看九宫格局
-5. 分析天地人神四盘
-
-### 紫微斗数
-
-1. 输入姓名（可选）
-2. 选择性别和日期类型
-3. 输入出生日期时间和时辰
-4. 查看命盘十二宫位
-5. 分析四化星
-
-## 🎨 色彩方案
-
-- **八字排盘**: 紫色到粉色渐变 (Purple to Pink)
-- **六爻排盘**: 蓝色到青色渐变 (Blue to Cyan)
-- **梅花易数**: 靛蓝到紫色渐变 (Indigo to Purple)
-- **大六壬**: 绿色到翠绿渐变 (Green to Emerald)
-- **奇门遁甲**: 橙色到红色渐变 (Orange to Red)
-- **紫微斗数**: 粉色到玫瑰渐变 (Pink to Rose)
-
-## 🌟 项目亮点
-
-1. **功能完整** - 六大排盘系统全部实现，功能齐全
-2. **算法准确** - 基于传统易学理论，计算精准
-3. **界面精美** - 现代化设计，视觉体验优秀
-4. **代码规范** - TypeScript + 模块化架构
-5. **性能优秀** - Next.js SSG，加载速度快
-6. **易于扩展** - 清晰的代码结构，便于二次开发
-
-## 📚 文档
-
-- [API 文档](./docs/API.md) - 详细的API接口说明
-- [部署文档](./docs/DEPLOYMENT.md) - 开发和生产环境部署指南
-- [Docker 部署](./docs/DEPLOY_DOCKER_CADDY.md) - Docker + Caddy 部署指南
-- [用户手册](./docs/USER_GUIDE.md) - 完整的使用说明
-- [更新日志](./docs/CHANGELOG.md) - 版本历史和迁移指南
-
-## 🔧 开发指南
-
-### 代码规范
-
-项目使用 ESLint 和 TypeScript 进行代码检查:
-
-```bash
-# 运行代码检查
-npm run lint
-
-# 自动修复问题
-npm run lint -- --fix
-
-# TypeScript 类型检查
-npx tsc --noEmit
-```
-
-### 项目架构
-
-```
-核心逻辑 (lib/) ← 类型定义 (types/) → UI组件 (app/)
-     ↓
-  工具函数 (utils/)
-     ↓
-  常量数据 (constants.ts)
-```
-
-### 添加新功能
-
-1. 在 `types/index.ts` 定义类型
-2. 在 `lib/` 实现核心逻辑
-3. 在 `app/` 创建UI页面
-4. 更新文档
-
-### 测试
-
-项目包含多个测试文件用于验证算法:
-
-```bash
-# 运行八字测试
-node test-bazi.js
-
-# 运行六爻测试
-node test-liuyao-complete.ts
-```
-
-## 🚀 部署
-
-### Vercel 部署 (推荐)
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/suanming)
-
-### Docker 部署
+### Docker 单容器部署
 
 ```bash
 docker build -t suanming .
-docker run -p 3000:3000 suanming
+docker run --env-file .env -p 3000:3000 suanming
 ```
 
-### Docker + Caddy 部署 (推荐)
+### Docker Compose + Caddy
 
-支持自动 HTTPS 配置：
+1. 把 [Caddyfile](./Caddyfile) 里的 `your-domain.com` 改成你的真实域名。
+2. 复制 `.env.example` 为 `.env`，填入服务器端 AI 配置。
+3. 在项目根目录执行:
 
 ```bash
-# 使用 docker-compose 一键部署
-docker-compose up -d
+docker compose up -d --build
 ```
 
-详见 [Docker + Caddy 部署文档](./docs/DEPLOY_DOCKER_CADDY.md)
+当前 Compose 编排包含:
 
-### 传统部署
+- `app`: 容器名 `suanming-app`，Next.js 生产容器，内部监听 `3000`
+- `caddy`: 容器名 `suanming-caddy`，反向代理，暴露 `80/443`
 
-```bash
-npm run build
-npm start
-```
+健康检查链路:
 
-详见 [部署文档](./docs/DEPLOYMENT.md)
+- `app` 通过 `GET /api/health` 检查自身可用性
+- `caddy` 等待 `app` 健康后再启动
 
-## 🤝 贡献
+详细说明见 [docs/DEPLOY_DOCKER_CADDY.md](./docs/DEPLOY_DOCKER_CADDY.md)。
 
-欢迎提交 Issue 和 Pull Request!
+## 文档
 
-### 贡献指南
+- [API 文档](./docs/API.md)
+- [用户手册](./docs/USER_GUIDE.md)
+- [部署文档](./docs/DEPLOYMENT.md)
+- [Docker + Caddy 部署](./docs/DEPLOY_DOCKER_CADDY.md)
+- [AI 代理运维说明](./docs/AI_PROXY_OPERATIONS.md)
+- [设计系统说明](./docs/DESIGN_SYSTEM.md)
+- [代码质量报告](./docs/CODE_QUALITY.md)
+- [发布检查清单](./docs/RELEASE_CHECKLIST.md)
+- [神煞配置说明](./docs/SHENSHA_CONFIG_GUIDE.md)
 
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+## 免责声明
 
-### 开发规范
-
-- 遵循 TypeScript 严格模式
-- 使用有意义的变量和函数名
-- 添加必要的注释
-- 保持代码简洁清晰
-
-## 📊 项目统计
-
-- **代码行数**: 10,000+ 行
-- **排盘系统**: 6 个
-- **神煞类型**: 60+ 种
-- **类型定义**: 完整覆盖
-- **文档完善度**: 95%+
-
-## 🗺️ 路线图
-
-### v1.1.0 (计划中)
-- [ ] 用户系统
-- [ ] 排盘历史
-- [ ] PDF导出
-- [ ] 分享功能
-
-### v1.2.0 (计划中)
-- [ ] 飞盘奇门
-- [ ] 金口诀
-- [ ] 太乙神数
-- [ ] 批量排盘
-
-### v2.0.0 (远期)
-- [ ] 移动端APP
-- [ ] AI智能解盘
-- [ ] 社区功能
-
-## ⚠️ 免责声明
-
-本工具仅供学习研究和娱乐参考使用，不构成任何专业建议。使用者应理性对待结果，不应将其作为重大决策的唯一依据。
-
----
-
-© 2024 易学排盘工具 · 传承传统文化 · 基于 Next.js 构建
-## Operational Update
-
-- Official AI credentials are server-side only.
-- Browser-entered custom API keys are stored in `sessionStorage` for the current browser session and are no longer persisted to `localStorage`.
-- Custom upstream proxying is disabled in production unless `AI_ENABLE_CUSTOM_MODE=1`.
-- Docker and Compose readiness checks now use `GET /api/health`.
-- See [docs/AI_PROXY_OPERATIONS.md](./docs/AI_PROXY_OPERATIONS.md) for deployment details.
+本项目用于产品实现、学习研究和功能演示，不应替代专业建议。请理性看待所有排盘结果与 AI 解读内容。

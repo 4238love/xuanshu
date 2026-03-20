@@ -806,55 +806,6 @@ export async function testAPIConnection(
       };
     }
   };
-  const qianfanProxyTest = async (): Promise<{ success: boolean; message: string }> => {
-    try {
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(
-          buildAIProxyRequestBody({
-            mode,
-            config: normalizedConfig,
-            messages: [
-              { role: 'system', content: '浣犳槸鍛界悊鍒嗘瀽鍔╂墜銆傝鍙緭鍑衡€滃懡鐞嗘帴鍙ｅ彲鐢ㄢ€濊繖鍏釜瀛椼€?' },
-              { role: 'user', content: '璇峰彧杈撳嚭锛氬懡鐞嗘帴鍙ｅ彲鐢?' },
-            ],
-            temperature: normalizedConfig.temperature ?? DEFAULT_AI_TEMPERATURE,
-            maxTokens: normalizedConfig.maxTokens ?? DEFAULT_AI_MAX_TOKENS,
-            stream: false,
-          })
-        ),
-      });
-
-      if (response.ok) {
-        const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-        const content = extractContentFromResponse(normalizedConfig, data);
-        const validationError = getAIResponseValidationError(content);
-
-        if (validationError) {
-          return { success: false, message: validationError };
-        }
-
-        return {
-          success: true,
-          message: content.includes('鍛界悊鎺ュ彛鍙敤')
-            ? '杩炴帴鎴愬姛锛?'
-            : '杩炴帴鎴愬姛锛屾ā鍨嬪凡杩斿洖鏈夋晥鍐呭銆?',
-        };
-      }
-
-      const error = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-      const errorMessage =
-        (typeof error.error === 'string' ? error.error : null) ??
-        (typeof error.message === 'string' ? error.message : null) ??
-        '';
-      return { success: false, message: `杩炴帴澶辫触: ${response.status} ${errorMessage}` };
-    } catch (error) {
-      return { success: false, message: `杩炴帴澶辫触: ${error instanceof Error ? error.message : '鏈煡閿欒'}` };
-    }
-  };
   if (mode === 'custom' && normalizedConfig.provider === 'qianfan' && isAIConfigValid(config, mode)) {
     return runProxyConnectionTest();
   }

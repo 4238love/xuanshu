@@ -183,8 +183,8 @@ describe('算法对比测试', () => {
 export function exportComparisonResults() {
   const results = {
     timestamp: new Date().toISOString(),
-    bazi: [] as any[],
-    liuyao: [] as any[]
+    bazi: [] as Array<Record<string, unknown>>,
+    liuyao: [] as Array<Record<string, unknown>>,
   };
 
   // 八字测试用例

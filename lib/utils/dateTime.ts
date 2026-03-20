@@ -1,4 +1,4 @@
-const { Solar, Lunar } = require('lunar-javascript');
+import { Lunar, Solar } from 'lunar-javascript';
 
 export interface SolarDateTimeParts {
   year: number;

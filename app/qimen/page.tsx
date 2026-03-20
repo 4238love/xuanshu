@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createQiMenPaiPan } from '@/lib/qimen';
 import { QiMenSettings, QiMenResult } from '@/types';
-import { Card, InfoCard } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Input, RadioGroup } from '@/components/ui/Input';
 import { DateTimePicker, Select } from '@/components/ui/FormControls';
 import { Button } from '@/components/ui/Button';
@@ -34,61 +34,6 @@ export default function QiMenPage() {
 
   const [result, setResult] = useState<QiMenResult | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const palaceMeta = [
-    { gong: '巽四宫', short: '巽四', index: 0, bagua: '☴', wuxing: '木', tone: 'emerald' },
-    { gong: '离九宫', short: '离九', index: 1, bagua: '☲', wuxing: '火', tone: 'rose' },
-    { gong: '坤二宫', short: '坤二', index: 2, bagua: '☷', wuxing: '土', tone: 'amber' },
-    { gong: '震三宫', short: '震三', index: 3, bagua: '☳', wuxing: '木', tone: 'teal' },
-    { gong: '中五宫', short: '中五', index: 4, bagua: '☯', wuxing: '土', tone: 'stone' },
-    { gong: '兑七宫', short: '兑七', index: 5, bagua: '☱', wuxing: '金', tone: 'slate' },
-    { gong: '坎一宫', short: '坎一', index: 6, bagua: '☵', wuxing: '水', tone: 'sky' },
-    { gong: '艮八宫', short: '艮八', index: 7, bagua: '☶', wuxing: '土', tone: 'orange' },
-    { gong: '乾六宫', short: '乾六', index: 8, bagua: '☰', wuxing: '金', tone: 'amber' }
-  ] as const;
-
-  const toneStyles = {
-    emerald: {
-      shell: 'border-emerald-200 bg-[linear-gradient(180deg,rgba(240,253,244,0.96),rgba(236,253,245,0.92))]',
-      badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-      strip: 'bg-emerald-600',
-    },
-    rose: {
-      shell: 'border-rose-200 bg-[linear-gradient(180deg,rgba(255,241,242,0.96),rgba(255,247,237,0.92))]',
-      badge: 'border-rose-200 bg-rose-50 text-rose-700',
-      strip: 'bg-rose-600',
-    },
-    amber: {
-      shell: 'border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.96),rgba(255,247,237,0.92))]',
-      badge: 'border-amber-200 bg-amber-50 text-amber-700',
-      strip: 'bg-amber-600',
-    },
-    teal: {
-      shell: 'border-teal-200 bg-[linear-gradient(180deg,rgba(240,253,250,0.96),rgba(236,253,245,0.92))]',
-      badge: 'border-teal-200 bg-teal-50 text-teal-700',
-      strip: 'bg-teal-600',
-    },
-    stone: {
-      shell: 'border-stone-200 bg-[linear-gradient(180deg,rgba(250,245,236,0.96),rgba(255,250,242,0.92))]',
-      badge: 'border-stone-200 bg-stone-100 text-stone-700',
-      strip: 'bg-stone-700',
-    },
-    slate: {
-      shell: 'border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.92))]',
-      badge: 'border-slate-200 bg-slate-50 text-slate-700',
-      strip: 'bg-slate-700',
-    },
-    sky: {
-      shell: 'border-sky-200 bg-[linear-gradient(180deg,rgba(240,249,255,0.96),rgba(236,253,245,0.92))]',
-      badge: 'border-sky-200 bg-sky-50 text-sky-700',
-      strip: 'bg-sky-600',
-    },
-    orange: {
-      shell: 'border-orange-200 bg-[linear-gradient(180deg,rgba(255,247,237,0.96),rgba(255,251,235,0.92))]',
-      badge: 'border-orange-200 bg-orange-50 text-orange-700',
-      strip: 'bg-orange-600',
-    },
-  } as const;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -3,7 +3,7 @@
  * 用于缓存计算结果,提升性能
  */
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react';
 
 interface CacheOptions {
   key: string;
@@ -18,23 +18,37 @@ interface CacheItem<T> {
 }
 
 // 内存缓存
-const memoryCache = new Map<string, CacheItem<any>>();
+const memoryCache = new Map<string, CacheItem<unknown>>();
 
 export function useCache<T>(options: CacheOptions) {
   const { key, ttl = 30 * 60 * 1000, storage = 'memory' } = options;
 
-  const getCache = (): T | null => {
+  const clearCache = useCallback(() => {
+    try {
+      if (storage === 'memory') {
+        memoryCache.delete(key);
+      } else if (storage === 'localStorage') {
+        localStorage.removeItem(key);
+      } else if (storage === 'sessionStorage') {
+        sessionStorage.removeItem(key);
+      }
+    } catch (error) {
+      console.error('清除缓存失败:', error);
+    }
+  }, [key, storage]);
+
+  const getCache = useCallback((): T | null => {
     try {
       let cacheItem: CacheItem<T> | null = null;
 
       if (storage === 'memory') {
-        cacheItem = memoryCache.get(key) || null;
+        cacheItem = (memoryCache.get(key) as CacheItem<T> | undefined) ?? null;
       } else if (storage === 'localStorage') {
         const stored = localStorage.getItem(key);
-        cacheItem = stored ? JSON.parse(stored) : null;
+        cacheItem = stored ? (JSON.parse(stored) as CacheItem<T>) : null;
       } else if (storage === 'sessionStorage') {
         const stored = sessionStorage.getItem(key);
-        cacheItem = stored ? JSON.parse(stored) : null;
+        cacheItem = stored ? (JSON.parse(stored) as CacheItem<T>) : null;
       }
 
       if (cacheItem) {
@@ -51,14 +65,14 @@ export function useCache<T>(options: CacheOptions) {
     }
 
     return null;
-  };
+  }, [clearCache, key, storage]);
 
-  const setCache = (data: T) => {
+  const setCache = useCallback((data: T) => {
     try {
       const cacheItem: CacheItem<T> = {
         data,
         timestamp: Date.now(),
-        ttl
+        ttl,
       };
 
       if (storage === 'memory') {
@@ -71,21 +85,7 @@ export function useCache<T>(options: CacheOptions) {
     } catch (error) {
       console.error('设置缓存失败:', error);
     }
-  };
-
-  const clearCache = () => {
-    try {
-      if (storage === 'memory') {
-        memoryCache.delete(key);
-      } else if (storage === 'localStorage') {
-        localStorage.removeItem(key);
-      } else if (storage === 'sessionStorage') {
-        sessionStorage.removeItem(key);
-      }
-    } catch (error) {
-      console.error('清除缓存失败:', error);
-    }
-  };
+  }, [key, storage, ttl]);
 
   return { getCache, setCache, clearCache };
 }
@@ -107,7 +107,7 @@ export function useCachedData<T>(
     ...options
   });
 
-  const fetchData = async (forceRefresh = false) => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     // 如果不强制刷新,先尝试从缓存读取
     if (!forceRefresh) {
       const cached = getCache();
@@ -132,17 +132,17 @@ export function useCachedData<T>(
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchFn, getCache, setCache]);
 
   useEffect(() => {
-    fetchData();
-  }, [cacheKey]);
+    void fetchData();
+  }, [fetchData]);
 
   return {
     data,
     loading,
     error,
-    refetch: () => fetchData(true)
+    refetch: () => fetchData(true),
   };
 }
 
@@ -156,7 +156,7 @@ export function clearAllCache() {
   // 清除localStorage中的缓存
   try {
     const keys = Object.keys(localStorage);
-    keys.forEach(key => {
+    keys.forEach((key) => {
       if (key.startsWith('cache_')) {
         localStorage.removeItem(key);
       }
@@ -168,7 +168,7 @@ export function clearAllCache() {
   // 清除sessionStorage中的缓存
   try {
     const keys = Object.keys(sessionStorage);
-    keys.forEach(key => {
+    keys.forEach((key) => {
       if (key.startsWith('cache_')) {
         sessionStorage.removeItem(key);
       }
@@ -211,9 +211,9 @@ export function useVirtualScroll<T>(
     totalHeight,
     startIndex,
     endIndex,
-    onScroll: (e: React.UIEvent<HTMLElement>) => {
+    onScroll: (e: UIEvent<HTMLElement>) => {
       setScrollTop(e.currentTarget.scrollTop);
-    }
+    },
   };
 }
 
@@ -241,19 +241,22 @@ export function useDebounce<T>(value: T, delay: number = 500): T {
  */
 export function useThrottle<T>(value: T, limit: number = 500): T {
   const [throttledValue, setThrottledValue] = useState<T>(value);
-  const lastRan = useState(Date.now())[0];
+  const lastRanRef = useRef(0);
 
   useEffect(() => {
+    const now = Date.now();
+    const elapsed = lastRanRef.current === 0 ? limit : now - lastRanRef.current;
+    const delay = Math.max(limit - elapsed, 0);
+
     const handler = setTimeout(() => {
-      if (Date.now() - lastRan >= limit) {
-        setThrottledValue(value);
-      }
-    }, limit - (Date.now() - lastRan));
+      lastRanRef.current = Date.now();
+      setThrottledValue(value);
+    }, delay);
 
     return () => {
       clearTimeout(handler);
     };
-  }, [value, limit, lastRan]);
+  }, [value, limit]);
 
   return throttledValue;
 }

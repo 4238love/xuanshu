@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
+import { LunarYear } from 'lunar-javascript';
 import {
   convertDateValue,
   formatLunarDateTime,
@@ -8,8 +9,6 @@ import {
   parseSolarDateTimeString,
   SolarDateTimeParts,
 } from '@/lib/utils/dateTime';
-
-const { LunarYear } = require('lunar-javascript');
 
 interface DateTimePickerProps {
   id?: string;
@@ -58,9 +57,14 @@ const DEFAULT_LUNAR: LunarDateTimeParts = {
   isLeap: false,
 };
 
+interface LunarYearWithMonthData {
+  getLeapMonth(): number;
+  getMonths(): Array<{ getMonth(): number; getDayCount(): number }>;
+}
+
 function getLeapMonth(year: number): number | null {
   try {
-    const lunarYear = LunarYear.fromYear(year);
+    const lunarYear = LunarYear.fromYear(year) as unknown as LunarYearWithMonthData;
     const leapMonth = lunarYear.getLeapMonth();
     return leapMonth > 0 ? leapMonth : null;
   } catch {
@@ -70,9 +74,9 @@ function getLeapMonth(year: number): number | null {
 
 function getLunarMonthDayCount(year: number, month: number, isLeap: boolean): number {
   try {
-    const lunarYear = LunarYear.fromYear(year);
+    const lunarYear = LunarYear.fromYear(year) as unknown as LunarYearWithMonthData;
     const targetMonth = isLeap ? -month : month;
-    const monthData = (lunarYear.getMonths() as Array<{ getMonth: () => number; getDayCount: () => number }>)
+    const monthData = lunarYear.getMonths()
       .find((item) => item.getMonth() === targetMonth);
     return monthData?.getDayCount() ?? 30;
   } catch {
@@ -126,46 +130,27 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   const pickerId = `${inputId}-picker`;
   const describedBy = error ? errorId : helperText ? helperId : undefined;
 
-  const [showPicker, setShowPicker] = useState(pickerOnly);
-  const [solarDraft, setSolarDraft] = useState<SolarDateTimeParts>(DEFAULT_SOLAR);
-  const [lunarDraft, setLunarDraft] = useState<LunarDateTimeParts>(DEFAULT_LUNAR);
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerVisible = pickerOnly || showPicker;
 
-  useEffect(() => {
-    const parsed = parseSolarDateTimeString(value);
-    if (parsed) {
-      setSolarDraft(parsed);
-    }
+  const solarDraft = useMemo(
+    () => parseSolarDateTimeString(value) ?? DEFAULT_SOLAR,
+    [value]
+  );
+
+  const lunarDraft = useMemo<LunarDateTimeParts>(() => {
+    const parsed = parseLunarDateTimeString(value) ?? DEFAULT_LUNAR;
+    const month = Math.abs(parsed.month);
+    const leapMonth = getLeapMonth(parsed.year);
+    const isLeap = parsed.isLeap && leapMonth === month;
+
+    return {
+      ...parsed,
+      month,
+      day: clamp(parsed.day, 1, getLunarMonthDayCount(parsed.year, month, isLeap)),
+      isLeap,
+    };
   }, [value]);
-
-  useEffect(() => {
-    const parsed = parseLunarDateTimeString(value);
-    if (parsed) {
-      setLunarDraft({
-        ...parsed,
-        month: Math.abs(parsed.month),
-      });
-    }
-  }, [value]);
-
-  useEffect(() => {
-    const leapMonth = getLeapMonth(lunarDraft.year);
-    if (lunarDraft.isLeap && leapMonth !== lunarDraft.month) {
-      setLunarDraft((prev) => ({ ...prev, isLeap: false }));
-    }
-  }, [lunarDraft.year, lunarDraft.month, lunarDraft.isLeap]);
-
-  useEffect(() => {
-    const maxDay = getLunarMonthDayCount(lunarDraft.year, lunarDraft.month, lunarDraft.isLeap);
-    if (lunarDraft.day > maxDay) {
-      setLunarDraft((prev) => ({ ...prev, day: maxDay }));
-    }
-  }, [lunarDraft.year, lunarDraft.month, lunarDraft.isLeap, lunarDraft.day]);
-
-  useEffect(() => {
-    if (pickerOnly) {
-      setShowPicker(true);
-    }
-  }, [pickerOnly]);
 
   const leapMonth = getLeapMonth(lunarDraft.year);
   const lunarDayCount = getLunarMonthDayCount(lunarDraft.year, lunarDraft.month, lunarDraft.isLeap);
@@ -177,7 +162,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       ...merged,
       day: clamp(merged.day, 1, getSolarMonthDayCount(merged.year, merged.month)),
     };
-    setSolarDraft(updated);
     onChange(formatSolarDateTime(updated));
   };
 
@@ -188,7 +172,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       ...merged,
       day: clamp(merged.day, 1, maxDay),
     };
-    setLunarDraft(updated);
     onChange(
       formatLunarDateTime({
         ...updated,
@@ -240,11 +223,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           <button
             type="button"
             onClick={() => setShowPicker((prev) => !prev)}
-            aria-expanded={showPicker}
+            aria-expanded={pickerVisible}
             aria-controls={pickerId}
             className="rounded-full border border-[rgba(117,76,40,0.14)] bg-[rgba(255,252,247,0.88)] px-3 py-1.5 text-sm text-[#5b4430] transition-colors hover:border-[#a27140] hover:bg-[#fff7ed]"
           >
-            {showPicker ? '收起选择器' : '展开选择器'}
+            {pickerVisible ? '收起选择器' : '展开选择器'}
           </button>
         )}
       </div>
@@ -275,7 +258,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         />
       )}
 
-      {(showPicker || pickerOnly) ? (
+      {pickerVisible ? (
         <div id={pickerId} className="rounded-[24px] border border-[#dbcdbb] bg-[rgba(255,250,242,0.86)] p-4 shadow-[0_14px_30px_-24px_rgba(42,24,8,0.45)]">
           {dateType === 0 ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3">

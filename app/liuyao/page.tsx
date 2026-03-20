@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createLiuYaoPaiPan } from '@/lib/liuyao';
 import { LiuYaoResult, LiuYaoSettings } from '@/types';
 import { Card } from '@/components/ui/Card';
@@ -156,7 +156,10 @@ export default function LiuYaoPage() {
     }
   }, [shenShaConfig]);
 
-  const filterShenSha = (shenShaList: string[]) => shenShaList.filter((sha) => shenShaConfig[sha] !== false);
+  const filterShenSha = useCallback(
+    (shenShaList: string[]) => shenShaList.filter((sha) => shenShaConfig[sha] !== false),
+    [shenShaConfig]
+  );
 
   const toggleShenSha = (sha: string) => {
     setShenShaConfig((prev) => ({
@@ -208,7 +211,7 @@ export default function LiuYaoPage() {
         ...filterShenSha(result.shenSha.hour),
       ]),
     ];
-  }, [result, shenShaConfig]);
+  }, [filterShenSha, result]);
   const paiPanTypeLabel =
     settings.paiPanType === 2 ? '手动起卦' : settings.paiPanType === 0 ? '日期起卦' : '自动起卦';
   const quickStats = [

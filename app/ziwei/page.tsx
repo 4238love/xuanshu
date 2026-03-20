@@ -39,10 +39,6 @@ const SI_HUA_ITEMS = [
   { label: '化忌', valueKey: 'huaJi', descKey: 'huaJiJieDu', tone: 'danger' as const },
 ] as const;
 
-function joinStars(items?: string[]) {
-  return items?.length ? items.join('、') : '暂无';
-}
-
 export default function ZiWeiPage() {
   const [settings, setSettings] = useState<ZiWeiSettings>({
     name: '',

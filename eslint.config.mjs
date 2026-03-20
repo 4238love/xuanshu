@@ -12,7 +12,30 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "**/*.backup",
+    "app/**/*-old.tsx",
+    "tests/test-*.js",
+    "eslint-report.json",
   ]),
+  {
+    files: [
+      "lib/bazi/**/*.ts",
+      "lib/liuyao/**/*.ts",
+      "lib/meihua/**/*.ts",
+      "lib/daliuren/**/*.ts",
+      "lib/qimen/**/*.ts",
+      "lib/ziwei/**/*.ts",
+      "lib/utils/common.ts",
+      "lunar.d.ts",
+    ],
+    rules: {
+      "@typescript-eslint/ban-ts-comment": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "prefer-const": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -22,6 +22,16 @@ function solarFromDateTime(value: string) {
   return Solar.fromDate(new Date(year, month - 1, day, hour, minute, second));
 }
 
+interface LunarInspection {
+  getYearInGanZhiByLiChun(): string;
+  getYearInGanZhiExact(): string;
+  getMonthInGanZhi(): string;
+  getMonthInGanZhiExact(): string;
+  getPrevQi(exact: boolean): { toString(): string };
+  getNextQi(exact: boolean): { toString(): string };
+  getPrevJie(exact: boolean): { toString(): string; getSolar(): { toYmdHms(): string } };
+}
+
 describe('八字排盘单元测试', () => {
   const testCases = TEST_CONFIG.testCases.bazi;
 
@@ -108,7 +118,7 @@ describe('八字排盘单元测试', () => {
 
   test('yearGanZhiType 会影响主排盘年柱', () => {
     const date = '2024-02-04 10:00:00';
-    const lunar = solarFromDateTime(date).getLunar() as any;
+    const lunar = solarFromDateTime(date).getLunar() as LunarInspection;
 
     const byLiChunDay = createBaZiPaiPan(buildSettings({
       date,
@@ -126,7 +136,7 @@ describe('八字排盘单元测试', () => {
 
   test('monthGanZhiType 会影响主排盘月柱', () => {
     const date = '2024-02-04 10:00:00';
-    const lunar = solarFromDateTime(date).getLunar() as any;
+    const lunar = solarFromDateTime(date).getLunar() as LunarInspection;
 
     const byDay = createBaZiPaiPan(buildSettings({
       date,
@@ -144,7 +154,7 @@ describe('八字排盘单元测试', () => {
 
   test('jieQiType 会影响节气信息和月将', () => {
     const date = '2024-02-19 10:00:00';
-    const lunar = solarFromDateTime(date).getLunar() as any;
+    const lunar = solarFromDateTime(date).getLunar() as LunarInspection;
 
     const byDay = createBaZiPaiPan(buildSettings({
       date,
@@ -174,7 +184,7 @@ describe('八字排盘单元测试', () => {
   test('renYuanType 会影响人元司令分野', () => {
     const date = '2024-02-08 12:00:00';
     const solar = solarFromDateTime(date);
-    const lunar = solar.getLunar() as any;
+    const lunar = solar.getLunar() as LunarInspection;
     const birthDate = new Date(2024, 1, 8, 12, 0, 0);
     const prevJieDateText = lunar.getPrevJie(false).getSolar().toYmdHms();
     const [prevDatePart, prevTimePart] = prevJieDateText.split(' ');

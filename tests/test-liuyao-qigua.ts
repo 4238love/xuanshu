@@ -40,7 +40,7 @@ try {
   console.log(`   本卦: ${result2.benGua} (${result2.benGuaAs})`);
   console.log(`   变卦: ${result2.bianGua} (${result2.bianGuaAs})`);
   console.log(`   六爻: ${result2.liuYao.benGua.yaoAsMarkName.join(', ')}`);
-  console.log(`   世应: ${result2.liuYao.benGua.shiYing.map((s, i) => s || '-').join(', ')}`);
+  console.log(`   世应: ${result2.liuYao.benGua.shiYing.map((s) => s || '-').join(', ')}`);
   console.log();
 } catch (error) {
   console.error('❌ 日期起卦失败:', error);
