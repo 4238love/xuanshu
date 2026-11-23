@@ -59,16 +59,22 @@ function main() {
 
   try {
     log(`静态导出，basePath=${BASE_PATH || '(根路径)'}`);
-    execFileSync(process.execPath, [path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'), 'build'], {
-      cwd: ROOT,
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        STATIC_EXPORT: '1',
-        NEXT_PUBLIC_STATIC_DEMO: '1',
-        NEXT_PUBLIC_BASE_PATH: BASE_PATH,
-      },
-    });
+    // Next 16 默认用 Turbopack 构建，但 Turbopack 目前不会产出 output: 'export' 的
+    // out/ 目录（构建日志里只有 Route 表，没有 Export 阶段），静态导出必须走 webpack
+    execFileSync(
+      process.execPath,
+      [path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'), 'build', '--webpack'],
+      {
+        cwd: ROOT,
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          STATIC_EXPORT: '1',
+          NEXT_PUBLIC_STATIC_DEMO: '1',
+          NEXT_PUBLIC_BASE_PATH: BASE_PATH,
+        },
+      }
+    );
   } finally {
     if (backupDir) {
       fs.renameSync(path.join(backupDir, 'api'), API_DIR);
