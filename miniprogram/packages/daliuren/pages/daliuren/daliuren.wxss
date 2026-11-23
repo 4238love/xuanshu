@@ -1,0 +1,84 @@
+@import "../../../../styles/chart.wxss";
+
+/* 三传 */
+.chuan-grid {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 26rpx;
+}
+
+.chuan {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18rpx 12rpx;
+  border-radius: var(--radius-sm);
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.8);
+}
+
+.chuan__label {
+  font-size: 20rpx;
+  color: var(--muted);
+  letter-spacing: 2rpx;
+}
+
+.chuan__zhi {
+  margin-top: 8rpx;
+  font-family: var(--font-serif);
+  font-size: 46rpx;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.chuan__meta {
+  font-size: 20rpx;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* 四课 */
+.ke-grid {
+  display: flex;
+  gap: 12rpx;
+}
+
+.ke {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16rpx 8rpx;
+  border-radius: var(--radius-sm);
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.8);
+}
+
+.ke__label {
+  font-size: 20rpx;
+  color: var(--muted);
+  letter-spacing: 1rpx;
+}
+
+.ke__shang,
+.ke__xia {
+  margin-top: 8rpx;
+  font-family: var(--font-serif);
+  font-size: 30rpx;
+  color: var(--ink);
+  line-height: 1.3;
+  text-align: center;
+}
+
+.ke__dun {
+  font-size: 19rpx;
+  color: var(--muted);
+}
+
+.ke__line {
+  width: 100%;
+  height: 1rpx;
+  margin: 8rpx 0;
+  background: var(--line-strong);
+}

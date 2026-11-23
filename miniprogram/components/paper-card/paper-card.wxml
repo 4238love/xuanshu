@@ -1,0 +1,7 @@
+<view class="paper-card {{compact ? 'paper-card--compact' : ''}} {{flat ? 'paper-card--flat' : ''}}">
+  <view wx:if="{{title}}" class="paper-card__head">
+    <text class="paper-card__title">{{title}}</text>
+    <text wx:if="{{hint}}" class="paper-card__hint">{{hint}}</text>
+  </view>
+  <slot></slot>
+</view>

@@ -1,0 +1,24 @@
+@import "../../../../styles/chart.wxss";
+
+/* 奇门九宫：3×3 共九格，靠 flex-wrap 换行；去掉最右列与最后一行的右边框/下边框 */
+.palace-grid .palace:nth-child(3n) {
+  border-right: none;
+}
+
+.palace-grid .palace:nth-child(n + 7) {
+  border-bottom: none;
+}
+
+.palace__kong {
+  padding: 0 8rpx;
+  border-radius: 6rpx;
+  background: rgba(142, 67, 52, 0.14);
+  color: var(--crimson);
+  font-size: 18rpx;
+}
+
+.palace__line--di {
+  margin-top: auto;
+  font-size: 20rpx;
+  color: var(--muted);
+}

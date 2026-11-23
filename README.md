@@ -2,6 +2,10 @@
 
 基于 Next.js 16、React 19、TypeScript 构建的中文术数排盘工作台。当前仓库已经实现 6 个独立排盘模块、统一的 AI 批注能力、健康检查接口，以及可直接用于容器化部署的 `Dockerfile`、`docker-compose.yml` 和 `Caddyfile`。
 
+**在线演示**：<https://jetamie.github.io/xuanshu/> —— 由 GitHub Pages 托管静态导出产物，六大排盘模块可直接使用；AI 批注依赖服务端代理，在静态站上会自动降级提示（本地或自建服务器部署时可用）。
+
+**微信小程序版**：见 [`miniprogram/`](./miniprogram/)，与 Web 端共用同一份排盘算法源码。
+
 ## 当前状态
 
 - `npm run lint` 已通过，ESLint 9 使用 Flat Config。
@@ -198,7 +202,32 @@ npm test -- --runInBand
 npm run build
 ```
 
+## 微信小程序版
+
+`miniprogram/` 是原生小程序实现，**排盘算法层与 Web 端共用同一份 `lib/*.ts` 源码**——小程序里的 `lib/` 是它的编译产物，不手工维护。
+
+- 已完成：首页、八字排盘（表单 / 结果 / 复制报告）、AI 批注云函数
+- 算法层同步：`npm run mp:build`
+- 自检与冒烟：`npm run mp:check` / `npm run mp:smoke` / `npm run mp:verify`
+- 部署与云函数配置见 [miniprogram/README.md](./miniprogram/README.md)
+
 ## 部署
+
+### GitHub Pages（静态演示站）
+
+`push` 到 `main` 会自动触发 [`.github/workflows/pages.yml`](./.github/workflows/pages.yml)，构建静态导出并发布到 <https://jetamie.github.io/xuanshu/>。
+
+本地复现同样的构建：
+
+```bash
+NEXT_PUBLIC_BASE_PATH=/xuanshu npm run build:pages   # 产物在 out/
+```
+
+三个要点：
+
+- `scripts/build-pages.mjs` 会在构建期间把 `app/api` 临时移出——静态导出不支持带 `POST` 的 route handler。构建结束（无论成败）自动还原。
+- 静态站没有服务端，前端通过 `NEXT_PUBLIC_STATIC_DEMO` 识别并给出可读提示，不会向不存在的 `/api/ai` 发请求。
+- 仓库设置里 Pages 的 Source 需为 **GitHub Actions**（首次已配置好）。
 
 ### Node 直接部署
 

@@ -1,0 +1,182 @@
+<import src="../../../../templates/birth-form.wxml" />
+<import src="../../../../templates/ai-panel.wxml" />
+
+<view class="page-shell">
+  <view style="height: {{statusBarHeight}}px"></view>
+
+  <view class="nav-bar">
+    <view class="nav-back" bindtap="onBack">‹</view>
+    <text class="nav-title">六爻排盘</text>
+  </view>
+
+  <!-- ==================== 表单 ==================== -->
+  <block wx:if="{{mode === 'form'}}">
+    <view class="hero hero--compact">
+      <text class="hero__kicker">LIUYAO · SIX LINES</text>
+      <text class="hero__title">起卦</text>
+      <text class="hero__desc">按日期起卦，或自动 / 手动掷爻。本卦、变卦、六亲六神与世应一次算全。</text>
+    </view>
+
+    <template
+      is="birth-form"
+      data="{{settings: settings, solarDate: solarDate, timeValue: timeValue, showOccupy: showOccupy, occupyLabel: occupyLabel, error: error}}"
+    />
+
+    <paper-card title="起卦方式" hint="日期 / 自动 / 手动">
+      <view class="choice-row">
+        <view
+          wx:for="{{panTypes}}"
+          wx:key="value"
+          class="choice {{settings.paiPanType === item.value ? 'choice--active' : ''}}"
+          data-field="paiPanType"
+          data-value="{{item.value}}"
+          bindtap="onSelectOption"
+        >{{item.label}}</view>
+      </view>
+
+      <text wx:if="{{settings.paiPanType === 0}}" class="field__hint">
+        以农历年月日时取数成卦，同一时刻起卦结果固定。
+      </text>
+      <text wx:if="{{settings.paiPanType === 1}}" class="field__hint">
+        随机生成六爻，每次排盘结果不同。
+      </text>
+
+      <block wx:if="{{settings.paiPanType === 2}}">
+        <text class="field__hint">自下而上录入六爻，初爻在最上。</text>
+        <view
+          wx:for="{{yaoPositions}}"
+          wx:for-item="yaoLabel"
+          wx:for-index="yaoIndex"
+          wx:key="*this"
+          class="manual-row"
+        >
+          <text class="manual-row__label">{{yaoLabel}}</text>
+          <view class="choice-row">
+            <view
+              wx:for="{{manualChoices}}"
+              wx:for-item="choice"
+              wx:for-index="choiceIndex"
+              wx:key="value"
+              class="choice choice--sm {{settings.manualYaoShu[yaoIndex] === choice.value ? 'choice--active' : ''}}"
+              data-index="{{yaoIndex}}"
+              data-value="{{choice.value}}"
+              bindtap="onPickYao"
+            >{{choice.label}}</view>
+          </view>
+        </view>
+      </block>
+    </paper-card>
+
+    <button class="primary-btn" loading="{{loading}}" bindtap="onSubmit">{{loading ? '正在排盘' : '开始排盘'}}</button>
+  </block>
+
+  <!-- ==================== 结果 ==================== -->
+  <block wx:else>
+    <view class="res-hero">
+      <view class="res-hero__tags">
+        <text class="tag tag--dark">六爻</text>
+        <text class="tag tag--dark">{{vm.guaList[0].as}} {{vm.guaList[0].name}}</text>
+      </view>
+      <text class="res-hero__kicker">本卦之变卦</text>
+      <text class="res-hero__name">{{vm.title}}</text>
+      <text class="res-hero__sub">{{vm.sub}}</text>
+
+      <view class="metric-grid">
+        <view class="metric">
+          <text class="metric__label">动爻</text>
+          <text class="metric__value">{{vm.headline}}</text>
+        </view>
+        <view class="metric">
+          <text class="metric__label">世爻 / 应爻</text>
+          <text class="metric__value">{{vm.shiYao}} / {{vm.yingYao}}</text>
+        </view>
+      </view>
+    </view>
+
+    <paper-card title="六爻排盘" hint="上爻在上 · 初爻在下">
+      <view class="table">
+        <view class="trow trow--head">
+          <text class="tcell tcell--label tcell--head">六神</text>
+          <text class="tcell tcell--wide tcell--head">六亲 / 纳甲</text>
+          <text class="tcell tcell--head">爻象</text>
+          <text class="tcell tcell--head">世应</text>
+          <text class="tcell tcell--head">变爻</text>
+        </view>
+
+        <view wx:for="{{vm.yaoRows}}" wx:key="key" class="trow">
+          <view class="tcell tcell--label">
+            <text>{{item.liuShen}}</text>
+            <text wx:if="{{item.fuShen}}" class="tcell--muted">伏{{item.fuShen}}</text>
+          </view>
+
+          <view class="tcell tcell--wide">
+            <text class="yao-qin">{{item.liuQin}} {{item.ganZhi}}</text>
+            <text class="yao-sub">{{item.wuXing}} · {{item.naYin}}</text>
+            <text wx:if="{{item.isMoving}}" class="yao-move">{{item.markName}}动</text>
+          </view>
+
+          <view class="yao-bar {{item.isMoving ? 'yao-bar--move' : ''}}">
+            <view wx:if="{{!item.isYin}}" class="yao-bar__seg yao-bar__seg--full"></view>
+            <block wx:else>
+              <view class="yao-bar__seg"></view>
+              <view class="yao-bar__seg"></view>
+            </block>
+          </view>
+
+          <text class="tcell">{{item.shiYing || '—'}}</text>
+
+          <view class="tcell">
+            <text wx:if="{{item.bianQin}}">{{item.bianQin}}</text>
+            <text wx:if="{{item.bianQin}}" class="yao-sub">{{item.bianGanZhi}}</text>
+            <text wx:else class="tcell--muted">—</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{vm.liuQinQueShi}}" class="kv kv--wrap">
+        <text class="kv__k">六亲缺失</text>
+        <text class="kv__v">{{vm.liuQinQueShi}}</text>
+      </view>
+    </paper-card>
+
+    <paper-card title="卦象" hint="本 · 变 · 互 · 错 · 综 · 伏">
+      <view class="gua-grid">
+        <view wx:for="{{vm.guaList}}" wx:key="key" class="gua-chip">
+          <text class="gua-chip__as">{{item.as}}</text>
+          <text class="gua-chip__name">{{item.name}}</text>
+          <text class="gua-chip__label">{{item.label}}</text>
+        </view>
+      </view>
+    </paper-card>
+
+    <paper-card title="卦辞" hint="六十四卦原文">
+      <view wx:for="{{vm.guaCi}}" wx:key="label" class="kv kv--wrap">
+        <text class="kv__k">{{item.label}}</text>
+        <text class="kv__v">{{item.value}}</text>
+      </view>
+    </paper-card>
+
+    <paper-card wx:if="{{vm.shenShaRows.length}}" title="神煞" hint="以四柱取">
+      <view wx:for="{{vm.shenShaRows}}" wx:key="label" class="kv kv--wrap">
+        <text class="kv__k">{{item.label}}</text>
+        <text class="kv__v">{{item.value}}</text>
+      </view>
+    </paper-card>
+
+    <paper-card title="起卦信息">
+      <view wx:for="{{vm.metaRows}}" wx:key="label" class="kv">
+        <text class="kv__k">{{item.label}}</text>
+        <text class="kv__v">{{item.value}}</text>
+      </view>
+    </paper-card>
+
+    <template is="ai-panel" data="{{ai: ai}}" />
+
+    <view class="action-bar">
+      <view class="ghost-btn" bindtap="onReset">重新起卦</view>
+      <view class="ghost-btn" bindtap="onCopyReport">复制报告</view>
+    </view>
+  </block>
+
+  <text class="footnote">六爻以象数为据，结果仅供研究参考。</text>
+</view>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useAIAnalysis } from '@/hooks/useAIAnalysis';
 import { useFocusTrap } from '@/components/ui/Accessibility';
 import { getAIConfig, getAIConfigMode, isAIConfigValid } from '@/lib/ai/config';
+import { IS_STATIC_DEMO } from '@/lib/ai/staticDemo';
 import { AnalysisType, PaiPanSystem, QuickAnalysisOptions } from '@/types/ai';
 import AIChatWindow from './AIChatWindow';
 import AISettingsPanel from './AISettingsPanel';
@@ -89,6 +90,13 @@ export default function AIAssistant({ system, chartData }: AIAssistantProps) {
 
     if (mode === 'official') {
       setCurrentConfigName('官方托管');
+
+      // 静态演示站没有 /api/ai，别去打那个必然 404 的请求
+      if (IS_STATIC_DEMO) {
+        setCurrentConfigName('静态演示站不可用');
+        setIsConfigValid(false);
+        return;
+      }
 
       try {
         const response = await fetch('/api/ai', { method: 'GET' });

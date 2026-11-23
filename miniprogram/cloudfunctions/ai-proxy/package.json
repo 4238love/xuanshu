@@ -1,0 +1,8 @@
+{
+  "name": "ai-proxy",
+  "version": "1.0.0",
+  "description": "玄数排盘 AI 批注代理：模型 Key 存云函数环境变量，不下发客户端",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {}
+}

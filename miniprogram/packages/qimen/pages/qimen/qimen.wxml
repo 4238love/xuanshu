@@ -1,0 +1,125 @@
+<import src="../../../../templates/birth-form.wxml" />
+<import src="../../../../templates/ai-panel.wxml" />
+
+<view class="page-shell">
+  <view style="height: {{statusBarHeight}}px"></view>
+
+  <view class="nav-bar">
+    <view class="nav-back" bindtap="onBack">‹</view>
+    <text class="nav-title">奇门遁甲</text>
+  </view>
+
+  <!-- ==================== 表单 ==================== -->
+  <block wx:if="{{mode === 'form'}}">
+    <view class="hero hero--compact">
+      <text class="hero__kicker">QIMEN · NINE PALACES</text>
+      <text class="hero__title">起局</text>
+      <text class="hero__desc">时家奇门默认按占时起局，九宫布神、星、门、奇仪与地盘六仪。</text>
+    </view>
+
+    <template
+      is="birth-form"
+      data="{{settings: settings, solarDate: solarDate, timeValue: timeValue, showOccupy: showOccupy, occupyLabel: occupyLabel, error: error}}"
+    />
+
+    <paper-card title="排盘类型" hint="家数">
+      <view class="choice-row">
+        <view
+          wx:for="{{panTypes}}"
+          wx:key="value"
+          class="choice {{settings.paiPanType === item.value ? 'choice--active' : ''}}"
+          data-field="paiPanType"
+          data-value="{{item.value}}"
+          bindtap="onSelectOption"
+        >{{item.label}}</view>
+      </view>
+      <text class="field__hint">时家以时辰起局最常用；日家、月家、年家分别以日、月、年为单位。</text>
+    </paper-card>
+
+    <paper-card title="值使取法" hint="天禽星落宫时">
+      <view class="choice-row">
+        <view
+          wx:for="{{zhiShiTypes}}"
+          wx:key="value"
+          class="choice {{settings.zhiShiType === item.value ? 'choice--active' : ''}}"
+          data-field="zhiShiType"
+          data-value="{{item.value}}"
+          bindtap="onSelectOption"
+        >{{item.label}}</view>
+      </view>
+    </paper-card>
+
+    <button class="primary-btn" loading="{{loading}}" bindtap="onSubmit">{{loading ? '正在排盘' : '开始排盘'}}</button>
+  </block>
+
+  <!-- ==================== 结果 ==================== -->
+  <block wx:else>
+    <view class="res-hero">
+      <view class="res-hero__tags">
+        <text class="tag tag--dark">奇门遁甲</text>
+        <text class="tag tag--dark">{{vm.yinYangDun}}</text>
+        <text class="tag tag--dark">{{vm.jieQiText}}</text>
+      </view>
+      <text class="res-hero__kicker">局式</text>
+      <text class="res-hero__name">{{vm.title}}</text>
+      <text class="res-hero__sub">{{vm.sub}}</text>
+    </view>
+
+    <paper-card title="九宫" hint="上南下北 · 洛书方位">
+      <view class="palace-grid">
+        <view
+          wx:for="{{vm.palaces}}"
+          wx:key="key"
+          class="palace {{item.isCenter ? 'palace--center' : ''}}"
+        >
+          <view class="palace__head">
+            <text>{{item.name}}</text>
+            <text wx:if="{{item.kong}}" class="palace__kong">空</text>
+          </view>
+          <text class="palace__line palace__line--shen">{{item.shen}}</text>
+          <text class="palace__line palace__line--xing">{{item.xing}}{{item.qiYi}}</text>
+          <text class="palace__line palace__line--men">{{item.men}}</text>
+          <text class="palace__line palace__line--di">地 {{item.diPan}}</text>
+        </view>
+      </view>
+      <text class="field__hint">每宫自上而下：八神 · 九星（带奇仪）· 八门 · 地盘奇仪。</text>
+    </paper-card>
+
+    <paper-card title="局式信息" hint="符头 · 旬首 · 值符值使">
+      <view wx:for="{{vm.infoRows}}" wx:key="label" class="kv">
+        <text class="kv__k">{{item.label}}</text>
+        <text class="kv__v">{{item.value}}</text>
+      </view>
+    </paper-card>
+
+    <paper-card wx:if="{{vm.marks.length}}" title="刑墓动应" hint="击刑 · 入墓 · 克应">
+      <view wx:for="{{vm.marks}}" wx:key="label" class="kv kv--wrap">
+        <text class="kv__k">{{item.label}}</text>
+        <view class="tag-list">
+          <text
+            wx:for="{{item.items}}"
+            wx:for-item="mark"
+            wx:key="*this"
+            class="tag {{item.tone === 'warn' ? 'tag--warn' : 'tag--jade'}}"
+          >{{mark}}</text>
+        </view>
+      </view>
+    </paper-card>
+
+    <paper-card title="起局信息">
+      <view wx:for="{{vm.metaRows}}" wx:key="label" class="kv kv--wrap">
+        <text class="kv__k">{{item.label}}</text>
+        <text class="kv__v">{{item.value}}</text>
+      </view>
+    </paper-card>
+
+    <template is="ai-panel" data="{{ai: ai}}" />
+
+    <view class="action-bar">
+      <view class="ghost-btn" bindtap="onReset">重新起局</view>
+      <view class="ghost-btn" bindtap="onCopyReport">复制报告</view>
+    </view>
+  </block>
+
+  <text class="footnote">奇门以九宫格局为断，结果仅供研究参考。</text>
+</view>

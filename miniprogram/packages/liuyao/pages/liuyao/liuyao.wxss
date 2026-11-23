@@ -1,0 +1,59 @@
+@import "../../../../styles/chart.wxss";
+
+/* 六爻：手动起卦的六爻录入 */
+.manual-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 10rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.manual-row:last-child {
+  border-bottom: none;
+}
+
+.manual-row__label {
+  flex: 0 0 88rpx;
+  font-size: 24rpx;
+  color: var(--muted);
+}
+
+.manual-row .choice-row {
+  flex: 1;
+  gap: 10rpx;
+}
+
+.manual-row .choice--sm {
+  padding: 6rpx 16rpx;
+  font-size: 22rpx;
+}
+
+/* 爻位明细 */
+.yao-qin {
+  display: block;
+  font-size: 25rpx;
+  color: var(--ink);
+}
+
+.yao-sub {
+  display: block;
+  font-size: 20rpx;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.yao-move {
+  display: block;
+  margin-top: 2rpx;
+  font-size: 20rpx;
+  color: var(--crimson);
+}
+
+.tcell--label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2rpx;
+  font-size: 21rpx;
+}

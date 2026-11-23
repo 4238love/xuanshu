@@ -40,3 +40,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 小程序算法层构建的临时工作区
+/.mp-build*
+
+# 工作区助手状态（记忆/项目档案），不入库
+/.workbuddy/
+
+# 微信开发者工具的本地私有配置（AppID 等），不入库
+/miniprogram/project.private.config.json
+
+# GitHub Pages 静态导出产物
+/out/
+/.next-pages/

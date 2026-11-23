@@ -1,0 +1,91 @@
+<!--
+  基础表单模板（五个排盘页共用）
+
+  用法：
+    <import src="../../../../templates/birth-form.wxml" />
+    <template is="birth-form" data="{{settings: settings, solarDate: solarDate, timeValue: timeValue, loading: loading, showOccupy: showOccupy, occupyLabel: occupyLabel, error: error}}" />
+
+  模板里的事件绑定直接落在页面实例上，页面需实现：
+    onTextInput / onSelectOption / onDateChange / onTimeChange / onSubmit
+-->
+<template name="birth-form">
+  <paper-card title="盘主信息" hint="公历 · 农历均可">
+    <view class="field">
+      <text class="field__label">姓名</text>
+      <input
+        class="input"
+        value="{{settings.name}}"
+        placeholder="用于报告标题，可留空"
+        placeholder-class="input__placeholder"
+        data-field="name"
+        bindinput="onTextInput"
+      />
+    </view>
+
+    <view wx:if="{{showOccupy}}" class="field">
+      <text class="field__label">{{occupyLabel}}</text>
+      <input
+        class="input"
+        value="{{settings.occupy}}"
+        placeholder="例如事业、财运、婚恋、寻物"
+        placeholder-class="input__placeholder"
+        data-field="occupy"
+        bindinput="onTextInput"
+      />
+    </view>
+
+    <view class="field">
+      <text class="field__label">性别</text>
+      <view class="choice-row">
+        <view
+          class="choice {{settings.sex === 1 ? 'choice--active' : ''}}"
+          data-field="sex"
+          data-value="1"
+          bindtap="onSelectOption"
+        >男</view>
+        <view
+          class="choice {{settings.sex === 0 ? 'choice--active' : ''}}"
+          data-field="sex"
+          data-value="0"
+          bindtap="onSelectOption"
+        >女</view>
+      </view>
+    </view>
+
+    <view class="field">
+      <text class="field__label">日期类型</text>
+      <view class="choice-row">
+        <view
+          class="choice {{settings.dateType === 0 ? 'choice--active' : ''}}"
+          data-field="dateType"
+          data-value="0"
+          bindtap="onSelectOption"
+        >公历</view>
+        <view
+          class="choice {{settings.dateType === 1 ? 'choice--active' : ''}}"
+          data-field="dateType"
+          data-value="1"
+          bindtap="onSelectOption"
+        >农历</view>
+      </view>
+    </view>
+
+    <view class="field">
+      <text class="field__label">日期</text>
+      <picker mode="date" value="{{solarDate}}" start="1900-01-01" end="2100-12-31" bindchange="onDateChange">
+        <view class="picker-box">{{solarDate}}</view>
+      </picker>
+      <text wx:if="{{settings.dateType === 1}}" class="field__hint">农历口径：请按农历年月日选择</text>
+    </view>
+
+    <view class="field">
+      <text class="field__label">时间</text>
+      <picker mode="time" value="{{timeValue}}" bindchange="onTimeChange">
+        <view class="picker-box">{{timeValue}}</view>
+      </picker>
+    </view>
+
+    <text wx:if="{{error}}" class="field__error">{{error}}</text>
+  </paper-card>
+
+</template>

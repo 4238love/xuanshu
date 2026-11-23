@@ -1,0 +1,6 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "paper-card": "/components/paper-card/paper-card"
+  }
+}

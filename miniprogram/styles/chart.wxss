@@ -1,0 +1,615 @@
+/**
+ * 排盘页通用样式
+ *
+ * 五个新模块（六爻 / 大六壬 / 奇门 / 梅花 / 紫微）共用这一份，
+ * 各页 wxss 只需 @import 进来，再补自己盘面特有的少量样式。
+ * 视觉语言与 app.wxss、八字页保持一致：宣纸底、赭石字、细描边。
+ */
+
+/* ---------- 表单 ---------- */
+
+/* 排盘页的版头比首页紧凑 */
+.hero--compact {
+  padding: 28rpx 8rpx 20rpx;
+}
+
+.hero--compact .hero__title {
+  font-size: 52rpx;
+}
+
+.nav-bar__spacer {
+  flex: 1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.field:last-child {
+  border-bottom: none;
+}
+
+.field__label {
+  font-size: 24rpx;
+  color: var(--muted);
+  letter-spacing: 2rpx;
+}
+
+.field__hint {
+  font-size: 21rpx;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.field__error {
+  font-size: 22rpx;
+  color: var(--crimson);
+}
+
+.input {
+  width: 100%;
+  height: 76rpx;
+  padding: 0 24rpx;
+  border-radius: var(--radius-sm);
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.82);
+  font-size: 28rpx;
+  color: var(--ink);
+}
+
+.input__placeholder {
+  color: rgba(113, 101, 90, 0.6);
+}
+
+.picker-box {
+  display: flex;
+  align-items: center;
+  min-height: 76rpx;
+  padding: 0 24rpx;
+  border-radius: var(--radius-sm);
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.82);
+  font-size: 28rpx;
+  color: var(--ink);
+}
+
+.picker-box--empty {
+  color: rgba(113, 101, 90, 0.6);
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+
+.choice {
+  padding: 12rpx 30rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.7);
+  font-size: 25rpx;
+  color: var(--ink-soft);
+  transition: all 0.18s ease;
+}
+
+.choice--active {
+  border-color: var(--bronze);
+  background: rgba(185, 120, 43, 0.14);
+  color: var(--bronze-deep);
+  font-weight: 600;
+}
+
+.choice--sm {
+  padding: 8rpx 20rpx;
+  font-size: 23rpx;
+}
+
+/**
+ * 按钮。
+ *
+ * 不用 flex：小程序 <button> 是框架组件，改 display 在部分基础库下会让它
+ * 退回内容宽度（表现为按钮变窄）。这里沿用八字页已验证的写法——
+ * 固定高 + 同值 line-height 做垂直居中，前提是内容必须单行
+ * （跨行会多出一个空行盒把文字顶下去，自检里的 checkButtonText 会拦）。
+ */
+.primary-btn {
+  display: block;
+  width: 100%;
+  height: 92rpx;
+  line-height: 92rpx;
+  padding: 0;
+  margin: 36rpx 0 0;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #8d5a22, #6d3f11);
+  color: #fdf6e8;
+  font-size: 30rpx;
+  letter-spacing: 4rpx;
+  text-align: center;
+  box-shadow: 0 18rpx 36rpx -22rpx rgba(109, 63, 17, 0.9);
+}
+
+.primary-btn::after {
+  border: none;
+}
+
+.ghost-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+  height: 84rpx;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--radius-md);
+  border: 1rpx solid var(--line-strong);
+  background: rgba(255, 252, 247, 0.75);
+  color: var(--ink-soft);
+  font-size: 26rpx;
+  letter-spacing: 2rpx;
+  text-align: center;
+}
+
+
+.action-bar {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 40rpx;
+}
+
+/* ---------- 结果：版头 ---------- */
+
+.res-hero {
+  position: relative;
+  overflow: hidden;
+  margin-top: 28rpx;
+  padding: 44rpx 36rpx;
+  border-radius: var(--radius-lg);
+  border: 1rpx solid var(--line);
+  background: linear-gradient(150deg, rgba(252, 248, 240, 0.97), rgba(238, 226, 206, 0.94));
+  box-shadow: 0 26rpx 50rpx -38rpx rgba(61, 37, 15, 0.75);
+}
+
+.res-hero__kicker {
+  display: block;
+  font-size: 20rpx;
+  letter-spacing: 6rpx;
+  color: var(--bronze-deep);
+}
+
+.res-hero__name {
+  display: block;
+  margin-top: 12rpx;
+  font-family: var(--font-serif);
+  font-size: 52rpx;
+  font-weight: 600;
+  letter-spacing: 4rpx;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.res-hero__sub {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.res-hero__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 18rpx;
+}
+
+/* ---------- 结果：标签与键值 ---------- */
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.tag {
+  padding: 4rpx 18rpx;
+  border-radius: 12rpx;
+  border: 1rpx solid var(--line);
+  background: rgba(255, 255, 255, 0.66);
+  font-size: 22rpx;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.tag--dark {
+  border-color: transparent;
+  background: rgba(32, 25, 21, 0.86);
+  color: #f6ecd9;
+}
+
+.tag--warn {
+  border-color: rgba(142, 67, 52, 0.3);
+  background: rgba(142, 67, 52, 0.1);
+  color: var(--crimson);
+}
+
+.tag--jade {
+  border-color: rgba(80, 100, 88, 0.3);
+  background: rgba(80, 100, 88, 0.12);
+  color: var(--jade);
+}
+
+.kv {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 12rpx 0;
+}
+
+.kv__k {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  color: var(--muted);
+}
+
+.kv__v {
+  flex: 1;
+  text-align: right;
+  font-size: 26rpx;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.kv--wrap {
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.kv--wrap .kv__v {
+  text-align: left;
+}
+
+/* ---------- 结果：表格（六爻 / 大六壬共用） ---------- */
+
+.table {
+  width: 100%;
+}
+
+.trow {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.trow:last-child {
+  border-bottom: none;
+}
+
+.trow--head {
+  padding-top: 0;
+}
+
+.tcell {
+  flex: 1;
+  min-width: 0;
+  font-size: 23rpx;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.tcell--label {
+  flex: 0 0 96rpx;
+  color: var(--muted);
+  font-size: 21rpx;
+}
+
+.tcell--wide {
+  flex: 1.6;
+  text-align: left;
+}
+
+.tcell--muted {
+  color: var(--muted);
+}
+
+.tcell--head {
+  color: var(--muted);
+  font-size: 20rpx;
+  letter-spacing: 2rpx;
+}
+
+/* ---------- 结果：卦名块 ---------- */
+
+.gua-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.gua-grid .gua-chip {
+  flex: 1 1 30%;
+  min-width: 168rpx;
+}
+
+.gua-chip__label {
+  margin-top: 4rpx;
+  font-size: 19rpx;
+  color: var(--muted);
+  letter-spacing: 2rpx;
+}
+
+.gua-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.gua-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 148rpx;
+  padding: 16rpx 18rpx;
+  border-radius: var(--radius-sm);
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.8);
+}
+
+.gua-chip__as {
+  font-size: 42rpx;
+  line-height: 1.2;
+  color: var(--bronze-deep);
+}
+
+.gua-chip__name {
+  margin-top: 6rpx;
+  font-family: var(--font-serif);
+  font-size: 24rpx;
+  color: var(--ink);
+  letter-spacing: 2rpx;
+}
+
+.gua-arrow {
+  flex-shrink: 0;
+  font-size: 30rpx;
+  color: var(--muted);
+}
+
+/* 爻线 */
+.yao-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  min-width: 108rpx;
+}
+
+.yao-bar__seg {
+  flex: 1;
+  height: 10rpx;
+  border-radius: 4rpx;
+  background: var(--ink-soft);
+}
+
+.yao-bar__seg--full {
+  flex: 0 0 100%;
+}
+
+.yao-bar--move .yao-bar__seg {
+  background: var(--crimson);
+}
+
+/* ---------- 结果：九宫（奇门） ---------- */
+
+.palace-grid {
+  display: flex;
+  flex-wrap: wrap;
+  border-radius: var(--radius-md);
+  border: 1rpx solid var(--line-strong);
+  overflow: hidden;
+  background: rgba(255, 252, 247, 0.6);
+}
+
+.palace {
+  width: 33.3333%;
+  min-height: 200rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  padding: 14rpx 12rpx;
+  border-right: 1rpx solid var(--line);
+  border-bottom: 1rpx solid var(--line);
+}
+
+.palace--center {
+  background: rgba(185, 120, 43, 0.08);
+}
+
+.palace__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 19rpx;
+  color: var(--muted);
+  letter-spacing: 1rpx;
+}
+
+.palace__line {
+  font-size: 23rpx;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.palace__line--shen {
+  color: var(--jade);
+}
+
+.palace__line--xing {
+  color: var(--bronze-deep);
+  font-weight: 600;
+}
+
+.palace__line--men {
+  color: var(--ink-soft);
+}
+
+/* ---------- 结果：宫位卡（紫微） ---------- */
+
+.gong-card {
+  padding: 20rpx 22rpx;
+  border-radius: var(--radius-sm);
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.82);
+}
+
+.gong-card--ming {
+  border-color: var(--bronze);
+  background: rgba(185, 120, 43, 0.1);
+}
+
+.gong-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.gong-card__name {
+  font-family: var(--font-serif);
+  font-size: 28rpx;
+  color: var(--ink);
+  letter-spacing: 2rpx;
+}
+
+.gong-card__gz {
+  font-size: 21rpx;
+  color: var(--muted);
+}
+
+.gong-card__stars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 12rpx;
+}
+
+.star {
+  font-size: 23rpx;
+  color: var(--ink-soft);
+}
+
+.star--main {
+  color: var(--bronze-deep);
+  font-weight: 600;
+}
+
+/* ---------- 结果：指标格 ---------- */
+
+.metric-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.metric {
+  flex: 1 1 30%;
+  min-width: 180rpx;
+  padding: 18rpx 20rpx;
+  border-radius: var(--radius-sm);
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.7);
+}
+
+.metric__label {
+  display: block;
+  font-size: 21rpx;
+  color: var(--muted);
+  letter-spacing: 1rpx;
+}
+
+.metric__value {
+  display: block;
+  margin-top: 6rpx;
+  font-family: var(--font-serif);
+  font-size: 30rpx;
+  color: var(--ink);
+}
+
+/* ---------- AI 面板 ---------- */
+
+.ai-panel {
+  margin-top: 24rpx;
+  padding: 26rpx 24rpx;
+  border-radius: var(--radius-md);
+  border: 1rpx dashed var(--line-strong);
+  background: rgba(80, 100, 88, 0.06);
+}
+
+.ai-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ai-panel__title {
+  font-family: var(--font-serif);
+  font-size: 28rpx;
+  color: var(--ink);
+  letter-spacing: 2rpx;
+}
+
+.ai-panel__action {
+  font-size: 24rpx;
+  color: var(--bronze-deep);
+}
+
+.ai-panel__body {
+  margin-top: 18rpx;
+  font-size: 26rpx;
+  line-height: 1.85;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-panel__hint {
+  margin-top: 14rpx;
+  font-size: 22rpx;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.ai-panel__loading {
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  color: var(--bronze-deep);
+}
+
+.ai-panel__error {
+  margin-top: 14rpx;
+  font-size: 23rpx;
+  color: var(--crimson);
+  line-height: 1.7;
+}
+
+/* ---------- 说明文字 ---------- */
+
+.footnote {
+  margin: 36rpx 8rpx 0;
+  text-align: center;
+  font-size: 21rpx;
+  color: var(--muted);
+  line-height: 1.8;
+}

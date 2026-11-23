@@ -1,0 +1,63 @@
+{
+  "description": "玄数排盘 · 微信小程序版",
+  "packOptions": {
+    "ignore": [
+      {
+        "value": "cloudfunctions",
+        "type": "folder"
+      },
+      {
+        "value": "preview",
+        "type": "folder"
+      },
+      {
+        "value": "README.md",
+        "type": "file"
+      }
+    ],
+    "include": []
+  },
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "preloadBackgroundData": false,
+    "minified": true,
+    "newFeature": true,
+    "coverView": true,
+    "nodeModules": false,
+    "autoAudits": false,
+    "showShadowRootInWxmlPanel": true,
+    "scopeDataCheck": false,
+    "uglifyFileName": false,
+    "checkInvalidKey": true,
+    "checkSiteMap": true,
+    "uploadWithSourceMap": true,
+    "compileHotReLoad": true,
+    "useCompilerPlugins": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    },
+    "compileWorklet": false,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "condition": false
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.5.6",
+  "appid": "wx56b2fefc578458bd",
+  "projectname": "xuanshu-miniprogram",
+  "miniprogramRoot": "./",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "condition": {},
+  "simulatorPluginLibVersion": {},
+  "editorSetting": {},
+  "isGameTourist": false
+}

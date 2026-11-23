@@ -1,0 +1,31 @@
+<!--
+  AI 批注面板模板（六个排盘页共用）
+
+  用法：
+    <import src="../../../../templates/ai-panel.wxml" />
+    <template is="ai-panel" data="{{ai: ai}}" />
+
+  页面需实现 onAskAI / onCloseAI / onCopyAI（chart-kit 的 formHandlers 已提供）。
+-->
+<template name="ai-panel">
+  <view class="ai-panel">
+    <view class="ai-panel__head">
+      <text class="ai-panel__title">AI 批注</text>
+
+      <text wx:if="{{!ai.open}}" class="ai-panel__action" bindtap="onAskAI">生成批注</text>
+      <text wx:elif="{{ai.content}}" class="ai-panel__action" bindtap="onCopyAI">复制</text>
+      <text wx:else class="ai-panel__action" bindtap="onCloseAI">收起</text>
+    </view>
+
+    <text wx:if="{{!ai.open && ai.cloudReady}}" class="ai-panel__hint">
+      由大模型基于当前盘面给出解读，仅供研究参考。
+    </text>
+    <text wx:if="{{!ai.open && !ai.cloudReady}}" class="ai-panel__hint">
+      未配置云开发环境，AI 批注暂不可用；其余功能不受影响。
+    </text>
+
+    <text wx:if="{{ai.loading}}" class="ai-panel__loading">正在推演盘面……</text>
+    <text wx:if="{{ai.error}}" class="ai-panel__error">{{ai.error}}</text>
+    <text wx:if="{{ai.content}}" class="ai-panel__body">{{ai.content}}</text>
+  </view>
+</template>

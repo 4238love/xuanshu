@@ -16,7 +16,20 @@ const eslintConfig = defineConfig([
     "app/**/*-old.tsx",
     "tests/test-*.js",
     "eslint-report.json",
+    // 小程序算法层是 tsc 编译产物，不参与 lint
+    "miniprogram/lib/**",
+    "miniprogram/cloudfunctions/**",
+    // 小程序算法层构建的中间工作区
+    ".mp-build*/**",
   ]),
+  {
+    // 小程序原生代码只能是 CommonJS，且运行环境自带 console
+    files: ["miniprogram/**/*.js", "scripts/**/*.mjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "no-console": "off",
+    },
+  },
   {
     files: [
       "lib/bazi/**/*.ts",

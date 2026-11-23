@@ -1,0 +1,40 @@
+.paper-card {
+  position: relative;
+  padding: 36rpx;
+  border-radius: var(--radius-lg);
+  border: 1rpx solid var(--line);
+  background: var(--paper);
+  box-shadow: 0 24rpx 60rpx -36rpx rgba(61, 37, 15, 0.55);
+  backdrop-filter: blur(20rpx);
+}
+
+.paper-card--compact {
+  padding: 24rpx 28rpx;
+  border-radius: var(--radius-md);
+}
+
+.paper-card--flat {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.paper-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+
+.paper-card__title {
+  font-family: var(--font-serif);
+  font-size: 32rpx;
+  letter-spacing: 4rpx;
+  color: var(--ink);
+}
+
+.paper-card__hint {
+  font-size: 22rpx;
+  color: var(--muted);
+}
