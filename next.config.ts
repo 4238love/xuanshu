@@ -17,8 +17,9 @@ const basePath = rawBasePath.replace(/\/+$/, "");
 const nextConfig: NextConfig = isStaticExport
   ? {
       output: "export",
-      // 与默认构建的 .next 分开，避免静态构建去清空正在用的开发产物
-      distDir: ".next-pages",
+      // ⚠️ 不要在这里覆盖 distDir：Next 一旦发现 distDir 被改成非 .next，
+      // 就把静态产物直接写进 distDir 而不再生成 out/（见 next/dist/build/index.js
+      // 的 hasCustomExportOutput 分支），Pages 会拿不到产物。
       basePath: basePath || undefined,
       // 静态托管按目录索引访问，/bazi 要导出成 bazi/index.html
       trailingSlash: true,
