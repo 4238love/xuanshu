@@ -52,11 +52,12 @@
   },
   "compileType": "miniprogram",
   "libVersion": "3.5.6",
-  "appid": "touristappid",
+  "appid": "wx56b2fefc578458bd",
   "projectname": "xuanshu-miniprogram",
   "miniprogramRoot": "./",
   "cloudfunctionRoot": "cloudfunctions/",
   "condition": {},
   "simulatorPluginLibVersion": {},
-  "editorSetting": {}
+  "editorSetting": {},
+  "isGameTourist": false
 }

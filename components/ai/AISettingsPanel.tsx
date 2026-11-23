@@ -11,6 +11,7 @@ import {
   DEFAULT_AI_MAX_TOKENS,
   DEFAULT_AI_TEMPERATURE,
 } from '@/types/ai';
+import { IS_STATIC_DEMO, STATIC_DEMO_AI_MESSAGE } from '@/lib/ai/staticDemo';
 import {
   addConfig,
   deleteConfig,
@@ -148,6 +149,15 @@ export default function AISettingsPanel({ onClose, onSave }: AISettingsPanelProp
   const loadOfficialStatus = useCallback(async () => {
     setOfficialStatusLoading(true);
     setOfficialStatusError(null);
+
+    // 静态演示站没有 /api/ai，直接给出结论，避免弹网络错误
+    if (IS_STATIC_DEMO) {
+      setOfficialConfigured(false);
+      setCustomModeAvailable(false);
+      setOfficialStatusError(STATIC_DEMO_AI_MESSAGE);
+      setOfficialStatusLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/ai', { method: 'GET' });

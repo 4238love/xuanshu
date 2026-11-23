@@ -9,6 +9,7 @@ import {
   QuickAnalysisOptions,
   UseAIAnalysisReturn,
 } from '@/types/ai';
+import { assertAIProxyAvailable } from '@/lib/ai/staticDemo';
 import {
   buildAIProxyRequestBody,
   extractContentFromResponse,
@@ -279,6 +280,8 @@ async function requestStreamingChatCompletion({
   signal,
   onContent,
 }: StreamRequestInput): Promise<StreamReadResult> {
+  assertAIProxyAvailable();
+
   const response = await fetch('/api/ai', {
     method: 'POST',
     headers: {
@@ -315,6 +318,8 @@ async function requestNonStreamingChatCompletion({
   messages,
   signal,
 }: CompletionRequestInput): Promise<string> {
+  assertAIProxyAvailable();
+
   const response = await fetch('/api/ai', {
     method: 'POST',
     headers: {

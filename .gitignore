@@ -49,3 +49,7 @@ next-env.d.ts
 
 # 微信开发者工具的本地私有配置（AppID 等），不入库
 /miniprogram/project.private.config.json
+
+# GitHub Pages 静态导出产物
+/out/
+/.next-pages/
