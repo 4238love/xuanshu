@@ -1,0 +1,66 @@
+@import "../../../../styles/chart.wxss";
+
+/* 四化 */
+.hua-grid {
+  display: flex;
+  gap: 16rpx;
+}
+
+.hua {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16rpx 8rpx;
+  border-radius: var(--radius-sm);
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.8);
+}
+
+.hua__label {
+  font-size: 20rpx;
+  color: var(--muted);
+  letter-spacing: 2rpx;
+}
+
+.hua__star {
+  margin-top: 6rpx;
+  font-family: var(--font-serif);
+  font-size: 30rpx;
+  color: var(--bronze-deep);
+}
+
+/* 十二宫 */
+.gong-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.gong-list .gong-card {
+  flex: 1 1 46%;
+  min-width: 300rpx;
+}
+
+.gong-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12rpx;
+  padding-top: 10rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.gong-card__meta {
+  font-size: 20rpx;
+  color: var(--muted);
+}
+
+.star--empty {
+  color: rgba(113, 101, 90, 0.7);
+}
+
+.star--faint {
+  color: rgba(113, 101, 90, 0.82);
+  font-size: 21rpx;
+}

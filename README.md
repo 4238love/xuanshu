@@ -198,6 +198,15 @@ npm test -- --runInBand
 npm run build
 ```
 
+## 微信小程序版
+
+`miniprogram/` 是原生小程序实现，**排盘算法层与 Web 端共用同一份 `lib/*.ts` 源码**——小程序里的 `lib/` 是它的编译产物，不手工维护。
+
+- 已完成：首页、八字排盘（表单 / 结果 / 复制报告）、AI 批注云函数
+- 算法层同步：`npm run mp:build`
+- 自检与冒烟：`npm run mp:check` / `npm run mp:smoke` / `npm run mp:verify`
+- 部署与云函数配置见 [miniprogram/README.md](./miniprogram/README.md)
+
 ## 部署
 
 ### Node 直接部署

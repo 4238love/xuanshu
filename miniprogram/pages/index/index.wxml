@@ -1,0 +1,60 @@
+<view class="page-shell page-shell--tab">
+  <view style="height: {{statusBarHeight}}px"></view>
+
+  <view class="hero hero--index">
+    <text class="hero__kicker">XUANSHU WORKSPACE</text>
+    <text class="hero__title">玄数排盘</text>
+    <text class="hero__desc">左右滑动切换盘式，点当前卡片进入</text>
+  </view>
+
+  <view
+    class="stack {{dragging ? 'stack--dragging' : ''}}"
+    bindtouchstart="onStackTouchStart"
+    catchtouchmove="onStackTouchMove"
+    bindtouchend="onStackTouchEnd"
+    bindtouchcancel="onStackTouchEnd"
+  >
+    <view
+      wx:for="{{modules}}"
+      wx:key="id"
+      class="card {{item.ready ? '' : 'card--soon'}}"
+      style="{{item.style}}"
+      data-index="{{index}}"
+      bindtap="onTapCard"
+    >
+      <view class="card__top">
+        <text class="card__icon">{{item.icon}}</text>
+        <text wx:if="{{!item.ready}}" class="card__tag">建设中</text>
+      </view>
+
+      <text class="card__name">{{item.name}}</text>
+      <text class="card__desc">{{item.desc}}</text>
+
+      <view class="card__features">
+        <text
+          wx:for="{{item.features}}"
+          wx:for-item="feature"
+          wx:key="*this"
+          class="card__feature"
+        >{{feature}}</text>
+      </view>
+
+      <view class="card__foot">
+        <text class="card__foot-hint">独立排盘模块</text>
+        <text class="card__foot-action">{{item.ready ? '开始排盘 →' : '即将开放'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="dots">
+    <view
+      wx:for="{{modules}}"
+      wx:key="id"
+      class="dot {{dots[index] ? 'dot--on' : ''}}"
+      data-index="{{index}}"
+      bindtap="onTapDot"
+    ></view>
+  </view>
+
+  <text class="swipe-hint">{{currentName}} · {{current + 1}} / {{modules.length}}</text>
+</view>

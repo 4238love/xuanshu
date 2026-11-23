@@ -1,0 +1,90 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/mine/mine"
+  ],
+  "subpackages": [
+    {
+      "root": "packages/bazi",
+      "name": "bazi",
+      "pages": [
+        "pages/bazi/bazi"
+      ]
+    },
+    {
+      "root": "packages/liuyao",
+      "name": "liuyao",
+      "pages": [
+        "pages/liuyao/liuyao"
+      ]
+    },
+    {
+      "root": "packages/daliuren",
+      "name": "daliuren",
+      "pages": [
+        "pages/daliuren/daliuren"
+      ]
+    },
+    {
+      "root": "packages/qimen",
+      "name": "qimen",
+      "pages": [
+        "pages/qimen/qimen"
+      ]
+    },
+    {
+      "root": "packages/meihua",
+      "name": "meihua",
+      "pages": [
+        "pages/meihua/meihua"
+      ]
+    },
+    {
+      "root": "packages/ziwei",
+      "name": "ziwei",
+      "pages": [
+        "pages/ziwei/ziwei"
+      ]
+    }
+  ],
+  "preloadRule": {
+    "pages/index/index": {
+      "network": "all",
+      "packages": [
+        "bazi"
+      ]
+    }
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#a8988a",
+    "selectedColor": "#7c4c19",
+    "backgroundColor": "#f7efe1",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的"
+      }
+    ]
+  },
+  "window": {
+    "navigationStyle": "custom",
+    "navigationBarTitleText": "玄数排盘",
+    "navigationBarBackgroundColor": "#eee5d5",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#eee5d5",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": false
+  },
+  "usingComponents": {
+    "paper-card": "/components/paper-card/paper-card"
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}

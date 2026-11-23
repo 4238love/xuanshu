@@ -1,0 +1,9 @@
+@import "../../../../styles/chart.wxss";
+
+/* 动爻标记 */
+.yao-move {
+  flex: 0 0 48rpx;
+  font-size: 20rpx;
+  color: var(--crimson);
+  text-align: center;
+}

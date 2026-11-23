@@ -12,7 +12,11 @@
     "test:coverage": "jest --coverage",
     "test:unit": "jest tests/unit",
     "test:integration": "jest tests/integration",
-    "test:comparison": "jest tests/comparison"
+    "test:comparison": "jest tests/comparison",
+    "mp:build": "node scripts/build-miniprogram-lib.mjs",
+    "mp:check": "node scripts/check-miniprogram.mjs",
+    "mp:smoke": "node scripts/smoke-pages.mjs && node scripts/smoke-bazi-page.mjs && node scripts/smoke-charts.mjs",
+    "mp:verify": "npm run mp:build && npm run mp:check && npm run mp:smoke"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",

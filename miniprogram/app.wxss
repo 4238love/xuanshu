@@ -1,0 +1,210 @@
+/**
+ * 全局样式：延续 Web 端的「宣纸 · 赭石」视觉体系
+ * 变量统一放在 page 上，各页面通过 var() 引用，避免重复硬编码色值
+ */
+
+page {
+  --bg: #eee5d5;
+  --bg-deep: #e3d6bf;
+  --paper: rgba(252, 248, 240, 0.9);
+  --paper-solid: #f7efe1;
+  --ink: #201915;
+  --ink-soft: #4b3a2c;
+  --muted: #71655a;
+  --line: rgba(72, 51, 31, 0.16);
+  --line-strong: rgba(72, 51, 31, 0.28);
+  --bronze: #b9782b;
+  --bronze-deep: #7c4c19;
+  --jade: #506458;
+  --crimson: #8e4334;
+
+  --radius-xl: 56rpx;
+  --radius-lg: 40rpx;
+  --radius-md: 28rpx;
+  --radius-sm: 18rpx;
+
+  --font-serif: "Songti SC", "STSong", "Source Han Serif SC", serif;
+  --font-sans: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(185, 120, 43, 0.12), transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(80, 100, 88, 0.1), transparent 46%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 28rpx;
+  line-height: 1.65;
+  box-sizing: border-box;
+}
+
+view,
+text,
+scroll-view,
+button,
+input,
+picker {
+  box-sizing: border-box;
+}
+
+/* ---------- 页面骨架 ---------- */
+
+.page-shell {
+  min-height: 100vh;
+  padding: 0 32rpx 80rpx;
+}
+
+.page-shell--flush {
+  padding: 0 0 80rpx;
+}
+
+/* 带自定义 tabBar 的页面：底部留出导航高度，避免内容被遮 */
+.page-shell--tab {
+  padding: 0 0 calc(108rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(108rpx + env(safe-area-inset-bottom));
+}
+
+/* 顶部导航占位，navigationStyle 为 custom 时用 */
+.nav-spacer {
+  width: 100%;
+}
+
+.nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 16rpx 32rpx;
+}
+
+.nav-back {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.75);
+  font-size: 34rpx;
+  color: var(--ink-soft);
+  line-height: 1;
+}
+
+.nav-title {
+  font-family: var(--font-serif);
+  font-size: 34rpx;
+  letter-spacing: 4rpx;
+  color: var(--ink);
+}
+
+/* ---------- 版头 ---------- */
+
+.hero {
+  padding: 48rpx 8rpx 40rpx;
+}
+
+.hero__kicker {
+  font-size: 20rpx;
+  letter-spacing: 8rpx;
+  text-transform: uppercase;
+  color: var(--bronze-deep);
+}
+
+.hero__title {
+  display: block;
+  margin-top: 16rpx;
+  font-family: var(--font-serif);
+  font-size: 68rpx;
+  font-weight: 600;
+  letter-spacing: 8rpx;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.hero__desc {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.hero__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 24rpx;
+}
+
+.badge {
+  padding: 6rpx 20rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--line);
+  background: rgba(255, 252, 247, 0.7);
+  font-size: 22rpx;
+  color: var(--ink-soft);
+  letter-spacing: 2rpx;
+}
+
+/* ---------- 区块标题 ---------- */
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 40rpx 8rpx 20rpx;
+}
+
+.section-head__title {
+  font-family: var(--font-serif);
+  font-size: 32rpx;
+  letter-spacing: 4rpx;
+  color: var(--ink);
+}
+
+.section-head__hint {
+  font-size: 22rpx;
+  color: var(--muted);
+}
+
+/* ---------- 通用工具类 ---------- */
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.row--between {
+  justify-content: space-between;
+}
+
+.row--wrap {
+  flex-wrap: wrap;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+}
+
+.mt-8 { margin-top: 8rpx; }
+.mt-16 { margin-top: 16rpx; }
+.mt-24 { margin-top: 24rpx; }
+.mt-32 { margin-top: 32rpx; }
+.mt-40 { margin-top: 40rpx; }
+
+.text-muted { color: var(--muted); }
+.text-bronze { color: var(--bronze-deep); }
+.text-crimson { color: var(--crimson); }
+.text-jade { color: var(--jade); }
+
+.divider {
+  height: 1rpx;
+  background: var(--line);
+  margin: 24rpx 0;
+}
+
+.safe-area-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}

@@ -1,0 +1,175 @@
+/* 首页：层叠卡牌 + 自定义 tabBar 占位 */
+
+.page-shell--tab {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.hero--index {
+  padding: 20rpx 44rpx 8rpx;
+  flex-shrink: 0;
+}
+
+.hero--index .hero__title {
+  font-size: 58rpx;
+}
+
+.hero--index .hero__desc {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+}
+
+/* ---------- 卡牌堆 ---------- */
+
+.stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 520rpx;
+  height: 600rpx;
+  margin-left: -260rpx;
+  margin-top: -300rpx;
+  display: flex;
+  flex-direction: column;
+  padding: 40rpx 36rpx 32rpx;
+  border-radius: 44rpx;
+  border: 1rpx solid rgba(72, 51, 31, 0.18);
+  background: rgba(252, 248, 240, 0.96);
+  box-shadow: 0 30rpx 60rpx -40rpx rgba(61, 37, 15, 0.6);
+  will-change: transform, opacity;
+  /* 松手后的吸附动画交给 CSS：拖动期间由 .stack--dragging 关掉 */
+  transition: transform 380ms cubic-bezier(0.22, 0.8, 0.3, 1), opacity 380ms ease;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* 拖动中必须关掉过渡，否则每一帧位移都会被缓动拖住，手感发黏 */
+.stack--dragging .card {
+  transition: none;
+}
+
+.card--soon {
+  background: rgba(247, 241, 230, 0.94);
+}
+
+.card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-height: 64rpx;
+}
+
+.card__icon {
+  font-size: 64rpx;
+  line-height: 1;
+  color: var(--bronze-deep);
+}
+
+.card__tag {
+  padding: 4rpx 18rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--line);
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 20rpx;
+  color: var(--muted);
+  letter-spacing: 1rpx;
+}
+
+.card__name {
+  display: block;
+  margin-top: 24rpx;
+  font-family: var(--font-serif);
+  font-size: 50rpx;
+  font-weight: 600;
+  letter-spacing: 4rpx;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.card__desc {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  line-height: 1.75;
+  color: #66584d;
+  height: 92rpx;
+  overflow: hidden;
+}
+
+.card__features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 24rpx;
+}
+
+.card__feature {
+  padding: 6rpx 20rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid var(--line);
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 22rpx;
+  color: var(--ink-soft);
+}
+
+.card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 24rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.card__foot-hint {
+  font-size: 22rpx;
+  color: var(--muted);
+}
+
+.card__foot-action {
+  font-size: 24rpx;
+  color: var(--bronze-deep);
+  letter-spacing: 1rpx;
+}
+
+/* ---------- 指示点 ---------- */
+
+.dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  padding: 28rpx 0 8rpx;
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 6rpx;
+  background: rgba(72, 51, 31, 0.22);
+  transition: all 0.22s ease;
+}
+
+.dot--on {
+  width: 40rpx;
+  background: var(--bronze);
+}
+
+.swipe-hint {
+  display: block;
+  padding: 0 44rpx 16rpx;
+  text-align: center;
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+  color: var(--muted);
+  flex-shrink: 0;
+}

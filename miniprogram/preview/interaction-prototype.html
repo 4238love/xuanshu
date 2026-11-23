@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>玄数排盘 · 首页卡片交互原型</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 28px 16px 40px;
+    background: #1c1a17;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    color: #e8e2d6;
+  }
+
+  .head { text-align: center; }
+  .head h1 { margin: 0; font-size: 17px; font-weight: 500; letter-spacing: 1px; }
+  .head p { margin: 6px 0 0; font-size: 12px; color: #8a8175; }
+
+  .switcher { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+  .switcher button {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid #3d3833;
+    background: #262320;
+    color: #b8b0a3;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all .18s;
+  }
+
+  .switcher button:hover { border-color: #6b5a45; color: #e8dcc8; }
+
+  .switcher button.on {
+    border-color: #b9782b;
+    background: #3a2a18;
+    color: #f0d9b4;
+  }
+
+  .phone {
+    position: relative;
+    width: 375px;
+    height: 720px;
+    border-radius: 34px;
+    background: #eee5d5;
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(185,120,43,.13), transparent 42%),
+      radial-gradient(circle at 88% 92%, rgba(80,100,88,.10), transparent 46%);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 8px solid #0e0d0c;
+  }
+
+  .statusbar {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-size: 11px;
+    color: #4b3a2c;
+    flex-shrink: 0;
+  }
+
+  .pagehead { padding: 4px 22px 10px; flex-shrink: 0; }
+  .pagehead .kicker { font-size: 9px; letter-spacing: 4px; color: #7c4c19; }
+  .pagehead .title {
+    display: block;
+    margin-top: 4px;
+    font-family: "Songti SC", "STSong", serif;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: #201915;
+  }
+  .pagehead .sub { display: block; margin-top: 4px; font-size: 11px; color: #71655a; }
+
+  .stage { flex: 1; position: relative; overflow: hidden; }
+
+  .card {
+    position: relative;
+    border-radius: 26px;
+    border: 1px solid rgba(72,51,31,.18);
+    background: rgba(252,248,240,.94);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    will-change: transform;
+  }
+
+  .card .ctop { display: flex; align-items: flex-start; justify-content: space-between; }
+  .card .icon { font-size: 30px; line-height: 1; color: #7c4c19; }
+  .card .tag {
+    padding: 2px 9px;
+    border-radius: 20px;
+    border: 1px solid rgba(72,51,31,.2);
+    font-size: 9px;
+    color: #71655a;
+  }
+  .card .name {
+    margin-top: 12px;
+    font-family: "Songti SC", "STSong", serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: #201915;
+  }
+  .card .desc { margin-top: 7px; font-size: 12px; line-height: 1.7; color: #66584d; }
+  .card .feats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .card .feat {
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(72,51,31,.14);
+    background: rgba(255,255,255,.62);
+    font-size: 10px;
+    color: #4b3a2c;
+  }
+  .card .foot {
+    margin-top: auto;
+    padding-top: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid rgba(72,51,31,.12);
+    font-size: 10px;
+    color: #71655a;
+  }
+  .card .foot .go { color: #7c4c19; font-size: 11px; }
+  .card.soon { opacity: .58; }
+
+  .dots {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+    padding: 12px 0 6px;
+    flex-shrink: 0;
+  }
+  .dot {
+    width: 6px; height: 6px; border-radius: 3px;
+    background: rgba(72,51,31,.22);
+    transition: all .22s;
+  }
+  .dot.on { width: 18px; background: #b9782b; }
+
+  .tabbar {
+    height: 54px;
+    display: flex;
+    border-top: 1px solid rgba(72,51,31,.14);
+    background: rgba(247,239,225,.96);
+    flex-shrink: 0;
+    padding-bottom: 6px;
+  }
+  .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 10px;
+    color: #a8988a;
+    cursor: pointer;
+  }
+  .tab .ti { font-size: 17px; line-height: 1; }
+  .tab.on { color: #7c4c19; font-weight: 500; }
+
+  /* ---------- A+ 并排缩放 ---------- */
+  .scroller {
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 calc(50% - 122px);
+    scrollbar-width: none;
+  }
+  .scroller::-webkit-scrollbar { display: none; }
+  .scroller .card {
+    width: 244px;
+    height: 328px;
+    flex-shrink: 0;
+    scroll-snap-align: center;
+    transition: transform .26s cubic-bezier(.22,.8,.3,1), opacity .26s;
+    transform-origin: center center;
+  }
+
+  /* ---------- B / C 层叠 ---------- */
+  .stack { position: absolute; inset: 0; perspective: 900px; perspective-origin: 50% 50%; }
+  .stack .card {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 244px;
+    height: 328px;
+    margin-left: -122px;
+    margin-top: -164px;
+    transform-origin: center center;
+    transition: transform .3s cubic-bezier(.22,.8,.3,1), opacity .3s;
+  }
+  .stack.dragging .card { transition: none; }
+
+  .meter {
+    font-size: 11px;
+    color: #8a8175;
+    text-align: center;
+    min-height: 16px;
+  }
+  .meter b { color: #e8dcc8; font-weight: 500; }
+
+  .note {
+    max-width: 560px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: #8a8175;
+    text-align: center;
+  }
+  .note code {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 11px;
+    background: #262320;
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: #c9a97a;
+  }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1>玄数排盘 · 首页卡片交互</h1>
+  <p>切换方案后直接拖动卡片，感受真实手感</p>
+</div>
+
+<div class="switcher" id="switcher">
+  <button data-mode="a" class="on">A+ 并排缩放</button>
+  <button data-mode="b">B 层叠卡牌</button>
+  <button data-mode="c">C 3D 透视</button>
+</div>
+
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span>●●●  ⌁  ▮</span></div>
+  <div class="pagehead">
+    <span class="kicker">XUANSHU WORKSPACE</span>
+    <span class="title">玄数排盘</span>
+    <span class="sub">左右滑动切换盘式</span>
+  </div>
+
+  <div class="stage" id="stage"></div>
+
+  <div class="dots" id="dots"></div>
+
+  <nav class="tabbar">
+    <div class="tab on"><span class="ti">⌂</span><span>首页</span></div>
+    <div class="tab"><span class="ti">☰</span><span>我的</span></div>
+  </nav>
+</div>
+
+<div class="meter" id="meter"></div>
+
+<div class="note">
+  A+ 用原生滚动吸附，侧卡靠 <code>transform: scale()</code> 收缩；B / C 是绝对定位叠压，靠指针事件驱动位移。
+</div>
+
+<script>
+const MODULES = [
+  { icon: '☯', name: '八字排盘', desc: '四柱、十神、五行与流运的完整命盘档案。', feats: ['四柱', '十神', '大运流年'], ready: true },
+  { icon: '☷', name: '六爻排盘', desc: '本卦、变卦、六亲与神煞的占断工作台。', feats: ['本变互综', '六亲六神'], ready: false },
+  { icon: '⚌', name: '大六壬', desc: '天地盘、四课三传与神将结构的课式舞台。', feats: ['天地盘', '四课三传'], ready: false },
+  { icon: '⚍', name: '奇门遁甲', desc: '九宫局式、八门九星与八神的综合盘面。', feats: ['九宫布局', '值符值使'], ready: false },
+  { icon: '☲', name: '梅花易数', desc: '本卦、互卦、错综与体用分析的轻量盘面。', feats: ['体用关系', '卦象注记'], ready: false },
+  { icon: '★', name: '紫微斗数', desc: '十二宫、四化与大限小限的星曜盘册。', feats: ['十二宫位', '四化星'], ready: false },
+];
+
+const stage = document.getElementById('stage');
+const dotsEl = document.getElementById('dots');
+const meter = document.getElementById('meter');
+let mode = 'a';
+let current = 0;
+
+function cardHTML(m) {
+  return `
+    <div class="ctop">
+      <span class="icon">${m.icon}</span>
+      ${m.ready ? '' : '<span class="tag">建设中</span>'}
+    </div>
+    <div class="name">${m.name}</div>
+    <div class="desc">${m.desc}</div>
+    <div class="feats">${m.feats.map(f => `<span class="feat">${f}</span>`).join('')}</div>
+    <div class="foot">
+      <span>独立排盘模块</span>
+      <span class="go">${m.ready ? '开始排盘 →' : '即将开放'}</span>
+    </div>`;
+}
+
+function renderDots() {
+  dotsEl.innerHTML = MODULES.map((_, i) =>
+    `<span class="dot ${i === current ? 'on' : ''}"></span>`).join('');
+  meter.innerHTML = `当前：<b>${MODULES[current].name}</b> · 第 ${current + 1} / ${MODULES.length} 张`;
+}
+
+/* ============ A+ 并排缩放（原生滚动吸附） ============ */
+let aScroller = null;
+
+function renderA() {
+  stage.innerHTML = '';
+  const scroller = document.createElement('div');
+  scroller.className = 'scroller';
+  MODULES.forEach((m, i) => {
+    const card = document.createElement('div');
+    card.className = 'card' + (m.ready ? '' : ' soon');
+    card.innerHTML = cardHTML(m);
+    card.dataset.i = i;
+    scroller.appendChild(card);
+  });
+  stage.appendChild(scroller);
+  aScroller = scroller;
+
+  const cards = [...scroller.querySelectorAll('.card')];
+
+  function paint() {
+    const center = scroller.scrollLeft + scroller.clientWidth / 2;
+    let best = 0;
+    let bestDist = Infinity;
+    cards.forEach((card, i) => {
+      const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+      const dist = (cardCenter - center) / scroller.clientWidth;
+      const abs = Math.abs(dist);
+      if (abs < bestDist) { bestDist = abs; best = i; }
+      const scale = Math.max(0.84, 1 - abs * 0.28);
+      card.style.transform = `scale(${scale.toFixed(3)})`;
+      card.style.opacity = String(Math.max(0.42, 1 - abs * 0.95));
+    });
+    if (best !== current) { current = best; renderDots(); }
+  }
+
+  scroller.addEventListener('scroll', () => requestAnimationFrame(paint), { passive: true });
+  requestAnimationFrame(() => { paint(); });
+}
+
+/* ============ B / C 层叠卡牌（指针驱动） ============ */
+let stackEl = null;
+let stackCards = [];
+let dragStartX = 0;
+let dragging = false;
+let moved = 0;
+let locked = false;
+
+function cardTransform(offsetIdx, is3d) {
+  const abs = Math.abs(offsetIdx);
+  if (abs > 1.02) {
+    return `translateX(${offsetIdx * 150}%) scale(.8)`;
+  }
+  const dir = Math.sign(offsetIdx);
+  const dist = Math.min(abs, 1);
+  const x = dir * dist * 78;
+  const scale = 1 - dist * 0.14;
+  const rot = is3d ? -dir * dist * 34 : 0;
+  return `translateX(${x}%) scale(${scale.toFixed(3)}) rotateY(${rot.toFixed(1)}deg)`;
+}
+
+function paintStack(dx) {
+  const is3d = mode === 'c';
+  stackCards.forEach((card, i) => {
+    const offset = (i - current) + (dx || 0) / 244;
+    const abs = Math.abs(offset);
+    card.style.transform = cardTransform(offset, is3d);
+    card.style.opacity = String(abs > 1.02 ? 0 : Math.max(0.5, 1 - abs * 0.38));
+    card.style.zIndex = String(20 - Math.round(abs * 10));
+    card.style.pointerEvents = abs < 0.5 ? 'auto' : 'none';
+  });
+}
+
+function renderStack() {
+  stage.innerHTML = '';
+  const stack = document.createElement('div');
+  stack.className = 'stack';
+  stackCards = MODULES.map((m, i) => {
+    const card = document.createElement('div');
+    card.className = 'card' + (m.ready ? '' : ' soon');
+    card.innerHTML = cardHTML(m);
+    card.dataset.i = i;
+    stack.appendChild(card);
+    return card;
+  });
+  stage.appendChild(stack);
+  stackEl = stack;
+
+  paintStack(0);
+
+  stack.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    locked = false;
+    dragStartX = e.clientX;
+    moved = 0;
+    stack.classList.add('dragging');
+    stack.setPointerCapture(e.pointerId);
+  });
+
+  stack.addEventListener('pointermove', (e) => {
+    if (!dragging || locked) return;
+    moved = e.clientX - dragStartX;
+    paintStack(moved);
+  });
+
+  function end() {
+    if (!dragging) return;
+    dragging = false;
+    stack.classList.remove('dragging');
+    const threshold = 56;
+    if (moved < -threshold && current < MODULES.length - 1) current += 1;
+    else if (moved > threshold && current > 0) current -= 1;
+    moved = 0;
+    paintStack(0);
+    stackCards.forEach(c => { c.style.transition = ''; });
+    renderDots();
+  }
+
+  stack.addEventListener('pointerup', end);
+  stack.addEventListener('pointercancel', end);
+  stack.addEventListener('pointerleave', end);
+}
+
+/* ============ 切换 ============ */
+function setMode(next) {
+  mode = next;
+  current = Math.min(current, MODULES.length - 1);
+  if (mode === 'a') renderA();
+  else renderStack();
+  renderDots();
+  document.querySelectorAll('#switcher button').forEach(b => {
+    b.classList.toggle('on', b.dataset.mode === mode);
+  });
+}
+
+document.getElementById('switcher').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn) setMode(btn.dataset.mode);
+});
+
+setMode('a');
+</script>
+</body>
+</html>

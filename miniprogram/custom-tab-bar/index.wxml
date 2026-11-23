@@ -1,0 +1,14 @@
+<view class="tabbar">
+  <view
+    wx:for="{{list}}"
+    wx:key="path"
+    class="tab {{selected === index ? 'tab--on' : ''}}"
+    data-index="{{index}}"
+    bindtap="onTap"
+    hover-class="tab--hover"
+    hover-stay-time="60"
+  >
+    <view class="ico ico--{{item.icon}}"></view>
+    <text class="tab__text">{{item.text}}</text>
+  </view>
+</view>

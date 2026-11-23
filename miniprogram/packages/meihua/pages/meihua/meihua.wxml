@@ -1,0 +1,204 @@
+<import src="../../../../templates/birth-form.wxml" />
+<import src="../../../../templates/ai-panel.wxml" />
+
+<view class="page-shell">
+  <view style="height: {{statusBarHeight}}px"></view>
+
+  <view class="nav-bar">
+    <view class="nav-back" bindtap="onBack">‹</view>
+    <text class="nav-title">梅花易数</text>
+  </view>
+
+  <!-- ==================== 表单 ==================== -->
+  <block wx:if="{{mode === 'form'}}">
+    <view class="hero hero--compact">
+      <text class="hero__kicker">MEIHUA · PLUM BLOSSOM</text>
+      <text class="hero__title">起卦</text>
+      <text class="hero__desc">时间、随机或报数起卦，本卦、变卦、互错综与体用生克一并生成。</text>
+    </view>
+
+    <template
+      is="birth-form"
+      data="{{settings: settings, solarDate: solarDate, timeValue: timeValue, showOccupy: showOccupy, occupyLabel: occupyLabel, error: error}}"
+    />
+
+    <paper-card title="起卦方式" hint="五种取数法">
+      <view class="choice-row">
+        <view
+          wx:for="{{panTypes}}"
+          wx:key="value"
+          class="choice {{settings.paiPanType === item.value ? 'choice--active' : ''}}"
+          data-field="paiPanType"
+          data-value="{{item.value}}"
+          bindtap="onSelectOption"
+        >{{item.label}}</view>
+      </view>
+
+      <text wx:if="{{settings.paiPanType === 0}}" class="field__hint">
+        以农历年月日时取数，同一时辰起卦结果固定。
+      </text>
+      <text wx:if="{{settings.paiPanType === 1}}" class="field__hint">
+        随机取上下卦与动爻，每次结果不同。
+      </text>
+
+      <view wx:if="{{settings.paiPanType === 2}}" class="field">
+        <text class="field__label">三位数字</text>
+        <input
+          class="input"
+          type="number"
+          value="{{settings.shu}}"
+          placeholder="例如 123"
+          placeholder-class="input__placeholder"
+          data-field="shu"
+          bindinput="onNumberInput"
+        />
+        <text class="field__hint">首位为上卦数，次位为下卦数，末位为动爻。</text>
+      </view>
+
+      <view wx:if="{{settings.paiPanType === 3}}" class="field">
+        <text class="field__label">一组数字</text>
+        <input
+          class="input"
+          type="number"
+          value="{{settings.danShu}}"
+          placeholder="例如 12345"
+          placeholder-class="input__placeholder"
+          data-field="danShu"
+          bindinput="onNumberInput"
+        />
+        <text class="field__hint">前后各半，分别求和取上下卦，两数相加取动爻。</text>
+      </view>
+
+      <block wx:if="{{settings.paiPanType === 4}}">
+        <view class="field">
+          <text class="field__label">第一个数字</text>
+          <input
+            class="input"
+            type="number"
+            value="{{settings.shuangShuOne}}"
+            placeholder="例如 12"
+            placeholder-class="input__placeholder"
+            data-field="shuangShuOne"
+            bindinput="onNumberInput"
+          />
+        </view>
+        <view class="field">
+          <text class="field__label">第二个数字</text>
+          <input
+            class="input"
+            type="number"
+            value="{{settings.shuangShuTwo}}"
+            placeholder="例如 34"
+            placeholder-class="input__placeholder"
+            data-field="shuangShuTwo"
+            bindinput="onNumberInput"
+          />
+        </view>
+
+        <view class="field">
+          <text class="field__label">上下卦取法</text>
+          <view class="choice-row">
+            <view
+              class="choice {{settings.shangXiaGuaType === 0 ? 'choice--active' : ''}}"
+              data-field="shangXiaGuaType"
+              data-value="0"
+              bindtap="onSelectOption"
+            >各位求和</view>
+            <view
+              class="choice {{settings.shangXiaGuaType === 1 ? 'choice--active' : ''}}"
+              data-field="shangXiaGuaType"
+              data-value="1"
+              bindtap="onSelectOption"
+            >直接取数</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <text class="field__label">动爻取法</text>
+          <view class="choice-row">
+            <view
+              class="choice {{settings.dongYaoType === 0 ? 'choice--active' : ''}}"
+              data-field="dongYaoType"
+              data-value="0"
+              bindtap="onSelectOption"
+            >不加时辰</view>
+            <view
+              class="choice {{settings.dongYaoType === 1 ? 'choice--active' : ''}}"
+              data-field="dongYaoType"
+              data-value="1"
+              bindtap="onSelectOption"
+            >加时辰</view>
+          </view>
+        </view>
+      </block>
+    </paper-card>
+
+    <button class="primary-btn" loading="{{loading}}" bindtap="onSubmit">{{loading ? '正在排盘' : '开始排盘'}}</button>
+  </block>
+
+  <!-- ==================== 结果 ==================== -->
+  <block wx:else>
+    <view class="res-hero">
+      <view class="res-hero__tags">
+        <text class="tag tag--dark">梅花易数</text>
+        <text class="tag tag--dark">动爻 第 {{vm.dongYao}} 爻</text>
+      </view>
+      <text class="res-hero__kicker">本卦之变卦</text>
+      <text class="res-hero__name">{{vm.title}}</text>
+      <text class="res-hero__sub">{{vm.tiYongText}}</text>
+
+      <view class="gua-grid">
+        <view wx:for="{{vm.guaList}}" wx:key="key" class="gua-chip">
+          <text class="gua-chip__as">{{item.as}}</text>
+          <text class="gua-chip__name">{{item.name}}</text>
+          <text class="gua-chip__label">{{item.label}}</text>
+        </view>
+      </view>
+    </view>
+
+    <paper-card title="体用分析" hint="体为己 · 用为事">
+      <view wx:for="{{vm.tiYongRows}}" wx:key="label" class="kv kv--wrap">
+        <text class="kv__k">{{item.label}}</text>
+        <text class="kv__v">{{item.value}}</text>
+      </view>
+    </paper-card>
+
+    <paper-card title="六爻" hint="本卦 · 上爻在上">
+      <view wx:for="{{vm.yaoRows}}" wx:key="key" class="trow">
+        <text class="tcell tcell--label">{{item.position}}</text>
+        <view class="yao-bar {{item.isMoving ? 'yao-bar--move' : ''}}">
+          <view wx:if="{{!item.isYin}}" class="yao-bar__seg yao-bar__seg--full"></view>
+          <block wx:else>
+            <view class="yao-bar__seg"></view>
+            <view class="yao-bar__seg"></view>
+          </block>
+        </view>
+        <text class="tcell tcell--wide tcell--muted">{{item.yaoCi}}</text>
+        <text wx:if="{{item.isMoving}}" class="tcell yao-move">动</text>
+      </view>
+    </paper-card>
+
+    <paper-card title="卦辞" hint="原文">
+      <view wx:for="{{vm.guaCi}}" wx:key="label" class="kv kv--wrap">
+        <text class="kv__k">{{item.label}}</text>
+        <text class="kv__v">{{item.value}}</text>
+      </view>
+    </paper-card>
+
+    <paper-card title="起卦信息">
+      <view wx:for="{{vm.metaRows}}" wx:key="label" class="kv">
+        <text class="kv__k">{{item.label}}</text>
+        <text class="kv__v">{{item.value}}</text>
+      </view>
+    </paper-card>
+
+    <template is="ai-panel" data="{{ai: ai}}" />
+
+    <view class="action-bar">
+      <view class="ghost-btn" bindtap="onReset">重新起卦</view>
+      <view class="ghost-btn" bindtap="onCopyReport">复制报告</view>
+    </view>
+  </block>
+
+  <text class="footnote">梅花以象数取义，结果仅供研究参考。</text>
+</view>

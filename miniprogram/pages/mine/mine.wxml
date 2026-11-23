@@ -1,0 +1,143 @@
+<view class="page-shell page-shell--tab">
+  <view style="height: {{statusBarHeight}}px"></view>
+
+  <view class="nav-bar">
+    <text class="nav-title">我的</text>
+  </view>
+
+  <view class="hero hero--mine">
+    <text class="hero__kicker">PREFERENCES</text>
+    <text class="hero__title">我的</text>
+    <text class="hero__desc">这里设定的口径会成为每次排盘的默认值。</text>
+  </view>
+
+  <paper-card title="排盘默认口径" hint="影响新开的排盘">
+    <view class="setting">
+      <text class="setting__label">年龄口径</text>
+      <view class="seg">
+        <view
+          wx:for="{{segments.xuShiSuiType}}"
+          wx:key="value"
+          class="seg__item {{prefs.xuShiSuiType === item.value ? 'seg__item--on' : ''}}"
+          data-field="xuShiSuiType"
+          data-value="{{item.value}}"
+          bindtap="onSelectSegment"
+        >{{item.label}}</view>
+      </view>
+    </view>
+
+    <view class="setting">
+      <text class="setting__label">节气口径</text>
+      <view class="seg">
+        <view
+          wx:for="{{segments.jieQiType}}"
+          wx:key="value"
+          class="seg__item {{prefs.jieQiType === item.value ? 'seg__item--on' : ''}}"
+          data-field="jieQiType"
+          data-value="{{item.value}}"
+          bindtap="onSelectSegment"
+        >{{item.label}}</view>
+      </view>
+    </view>
+
+    <view class="setting">
+      <text class="setting__label">年干支口径</text>
+      <view class="seg">
+        <view
+          wx:for="{{segments.yearGanZhiType}}"
+          wx:key="value"
+          class="seg__item {{prefs.yearGanZhiType === item.value ? 'seg__item--on' : ''}}"
+          data-field="yearGanZhiType"
+          data-value="{{item.value}}"
+          bindtap="onSelectSegment"
+        >{{item.label}}</view>
+      </view>
+    </view>
+
+    <view class="setting">
+      <text class="setting__label">月干支口径</text>
+      <view class="seg">
+        <view
+          wx:for="{{segments.monthGanZhiType}}"
+          wx:key="value"
+          class="seg__item {{prefs.monthGanZhiType === item.value ? 'seg__item--on' : ''}}"
+          data-field="monthGanZhiType"
+          data-value="{{item.value}}"
+          bindtap="onSelectSegment"
+        >{{item.label}}</view>
+      </view>
+    </view>
+
+    <view class="setting setting--row">
+      <text class="setting__label">大运轮数</text>
+      <picker
+        mode="selector"
+        range="{{daYunChoices}}"
+        value="{{prefs.daYunLunShu - 6}}"
+        bindchange="onDaYunChange"
+      >
+        <view class="setting__value">{{prefs.daYunLunShu}} 轮 ›</view>
+      </picker>
+    </view>
+  </paper-card>
+
+  <paper-card title="真太阳时与交互">
+    <view class="setting setting--row">
+      <text class="setting__label">默认城市</text>
+      <view class="setting__side">
+        <picker
+          mode="selector"
+          range="{{cities}}"
+          value="{{cityIndex}}"
+          bindchange="onPickCity"
+        >
+          <view class="setting__value">{{cityDisplay}} ›</view>
+        </picker>
+        <text wx:if="{{cityIndex >= 0}}" class="setting__clear" bindtap="onClearCity">清除</text>
+      </view>
+    </view>
+
+    <view class="setting setting--row">
+      <view class="col">
+        <text class="setting__label setting__label--inline">排盘震动反馈</text>
+        <text class="setting__hint">排盘完成后轻微震动一次</text>
+      </view>
+      <switch checked="{{prefs.haptic}}" color="#8f5b2d" bindchange="onToggleHaptic" />
+    </view>
+  </paper-card>
+
+  <paper-card title="AI 批注">
+    <view class="status-row">
+      <view class="status-dot {{cloudReady ? 'status-dot--on' : ''}}"></view>
+      <view class="status-row__body">
+        <text class="status-row__title">{{cloudReady ? '已就绪' : '未启用'}}</text>
+        <text class="status-row__desc">{{cloudReady ? '模型 Key 存放在云函数环境变量，客户端不接触。' : '在 app.js 填入云环境 ID 并部署 ai-proxy 云函数后可用。'}}</text>
+      </view>
+    </view>
+  </paper-card>
+
+  <paper-card title="关于">
+    <view class="about">
+      <view class="about__row">
+        <text class="about__k">版本</text>
+        <text class="about__v">{{version}}</text>
+      </view>
+      <view class="about__row">
+        <text class="about__k">排盘引擎</text>
+        <text class="about__v">与 Web 端共用同一份算法源码</text>
+      </view>
+    </view>
+
+    <view class="divider"></view>
+
+    <text class="disclaimer">排盘结果仅供学习研究与功能演示，不构成任何决策依据，请理性看待。</text>
+
+    <view class="btn-group">
+      <view class="row-btn" bindtap="onCopyDiagnostics">复制诊断信息</view>
+      <view class="row-btn" bindtap="onResetPrefs">恢复默认设置</view>
+      <view class="row-btn row-btn--danger" bindtap="onClearCache">清除本地缓存</view>
+    </view>
+  </paper-card>
+
+  <text class="footnote">玄数排盘 · 微信小程序版</text>
+</view>

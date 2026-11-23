@@ -1,0 +1,513 @@
+<view class="page-shell">
+  <view style="height: {{statusBarHeight}}px"></view>
+
+  <view class="nav-bar">
+    <view class="nav-back" bindtap="onBack">‹</view>
+    <text class="nav-title">八字排盘</text>
+    <view class="nav-bar__spacer"></view>
+  </view>
+
+  <!-- ==================== 表单 ==================== -->
+  <block wx:if="{{mode === 'form'}}">
+    <view class="hero hero--compact">
+      <text class="hero__kicker">BAZI · FOUR PILLARS</text>
+      <text class="hero__title">命主输入</text>
+      <text class="hero__desc">填写出生信息与排盘参数。四柱、十神、五行与流运将一次算全。</text>
+    </view>
+
+    <paper-card title="基础信息">
+      <view class="field">
+        <text class="field__label">姓名</text>
+        <input
+          class="input"
+          value="{{settings.name}}"
+          placeholder="用于报告标题，可留空"
+          placeholder-class="input__placeholder"
+          data-field="name"
+          bindinput="onTextInput"
+        />
+      </view>
+
+      <view class="field">
+        <text class="field__label">占事</text>
+        <input
+          class="input"
+          value="{{settings.occupy}}"
+          placeholder="例如事业、财运、婚恋"
+          placeholder-class="input__placeholder"
+          data-field="occupy"
+          bindinput="onTextInput"
+        />
+      </view>
+
+      <view class="field">
+        <text class="field__label">性别</text>
+        <view class="choice-row">
+          <view
+            wx:for="{{choices.sex}}"
+            wx:key="value"
+            class="choice {{settings.sex === item.value ? 'choice--active' : ''}}"
+            data-field="sex"
+            data-value="{{item.value}}"
+            bindtap="onSelectOption"
+          >{{item.label}}</view>
+        </view>
+      </view>
+
+      <view class="field">
+        <text class="field__label">日期类型</text>
+        <view class="choice-row">
+          <view
+            wx:for="{{choices.dateType}}"
+            wx:key="value"
+            class="choice {{settings.dateType === item.value ? 'choice--active' : ''}}"
+            data-field="dateType"
+            data-value="{{item.value}}"
+            bindtap="onSelectOption"
+          >{{item.label}}</view>
+        </view>
+      </view>
+
+      <view class="field">
+        <text class="field__label">出生日期</text>
+        <picker
+          mode="date"
+          value="{{solarDate}}"
+          start="1900-01-01"
+          end="2100-12-31"
+          bindchange="onDateChange"
+        >
+          <view class="picker-box">{{solarDate}}</view>
+        </picker>
+        <text wx:if="{{settings.dateType === 1}}" class="field__hint">
+          农历口径：请按农历年月日选择
+        </text>
+      </view>
+
+      <view class="field">
+        <text class="field__label">出生时间</text>
+        <picker mode="time" value="{{timeValue}}" bindchange="onTimeChange">
+          <view class="picker-box">{{timeValue}}</view>
+        </picker>
+      </view>
+
+      <text wx:if="{{errors.date}}" class="field__error">{{errors.date}}</text>
+    </paper-card>
+
+    <!-- 进阶设置 -->
+    <view class="advanced {{advancedOpen ? 'advanced--open' : ''}}">
+      <view class="advanced__head" bindtap="onToggleAdvanced">
+        <view class="col">
+          <text class="advanced__kicker">进阶设置</text>
+          <text class="advanced__title">口径与开关</text>
+        </view>
+        <text class="advanced__action">{{advancedOpen ? '收起' : '展开'}}</text>
+      </view>
+
+      <view wx:if="{{advancedOpen}}" class="advanced__body">
+        <view class="field">
+          <text class="field__label">年龄口径</text>
+          <view class="choice-row">
+            <view
+              wx:for="{{choices.xuShiSuiType}}"
+              wx:key="value"
+              class="choice {{settings.xuShiSuiType === item.value ? 'choice--active' : ''}}"
+              data-field="xuShiSuiType"
+              data-value="{{item.value}}"
+              bindtap="onSelectOption"
+            >{{item.label}}</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <text class="field__label">起运流派</text>
+          <view class="choice-row">
+            <view
+              wx:for="{{choices.qiYunLiuPaiType}}"
+              wx:key="value"
+              class="choice {{settings.qiYunLiuPaiType === item.value ? 'choice--active' : ''}}"
+              data-field="qiYunLiuPaiType"
+              data-value="{{item.value}}"
+              bindtap="onSelectOption"
+            >{{item.label}}</view>
+          </view>
+          <text class="field__hint">流派一按出生后第 3 天起算；流派二按节气间隔精确计算。</text>
+        </view>
+
+        <view class="field">
+          <text class="field__label">节气口径</text>
+          <view class="choice-row">
+            <view
+              wx:for="{{choices.jieQiType}}"
+              wx:key="value"
+              class="choice {{settings.jieQiType === item.value ? 'choice--active' : ''}}"
+              data-field="jieQiType"
+              data-value="{{item.value}}"
+              bindtap="onSelectOption"
+            >{{item.label}}</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <text class="field__label">人元司令</text>
+          <view class="choice-row choice-row--wrap">
+            <view
+              wx:for="{{choices.renYuanType}}"
+              wx:key="value"
+              class="choice choice--sm {{settings.renYuanType === item.value ? 'choice--active' : ''}}"
+              data-field="renYuanType"
+              data-value="{{item.value}}"
+              bindtap="onSelectOption"
+            >{{item.label}}</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <text class="field__label">年干支口径</text>
+          <view class="choice-row">
+            <view
+              wx:for="{{choices.yearGanZhiType}}"
+              wx:key="value"
+              class="choice choice--sm {{settings.yearGanZhiType === item.value ? 'choice--active' : ''}}"
+              data-field="yearGanZhiType"
+              data-value="{{item.value}}"
+              bindtap="onSelectOption"
+            >{{item.label}}</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <text class="field__label">月干支口径</text>
+          <view class="choice-row">
+            <view
+              wx:for="{{choices.monthGanZhiType}}"
+              wx:key="value"
+              class="choice {{settings.monthGanZhiType === item.value ? 'choice--active' : ''}}"
+              data-field="monthGanZhiType"
+              data-value="{{item.value}}"
+              bindtap="onSelectOption"
+            >{{item.label}}</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <text class="field__label">日干支换日</text>
+          <view class="choice-row">
+            <view
+              wx:for="{{choices.dayGanZhiType}}"
+              wx:key="value"
+              class="choice {{settings.dayGanZhiType === item.value ? 'choice--active' : ''}}"
+              data-field="dayGanZhiType"
+              data-value="{{item.value}}"
+              bindtap="onSelectOption"
+            >{{item.label}}</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <text class="field__label">大运轮数</text>
+          <picker
+            mode="selector"
+            range="{{daYunChoices}}"
+            value="{{settings.daYunLunShu - 6}}"
+            bindchange="onDaYunChange"
+          >
+            <view class="picker-box">{{settings.daYunLunShu}} 轮</view>
+          </picker>
+        </view>
+
+        <view class="switch-row">
+          <view class="col">
+            <text class="field__label field__label--inline">启用真太阳时</text>
+            <text class="field__hint">按城市或经度修正出生时刻，避免只用标准时区。</text>
+          </view>
+          <switch
+            checked="{{settings.useTrueSolarTime}}"
+            color="#8f5b2d"
+            bindchange="onToggleTrueSolar"
+          />
+        </view>
+
+        <block wx:if="{{settings.useTrueSolarTime}}">
+          <view class="field">
+            <text class="field__label">城市</text>
+            <picker
+              mode="selector"
+              range="{{cities}}"
+              value="{{cityIndex}}"
+              bindchange="onPickCity"
+            >
+              <view class="picker-box {{cityIndex < 0 ? 'picker-box--empty' : ''}}">{{cityDisplay}}</view>
+            </picker>
+            <text wx:if="{{errors.city}}" class="field__error">{{errors.city}}</text>
+          </view>
+
+          <view class="field">
+            <text class="field__label">经度（城市未收录时填写）</text>
+            <input
+              class="input"
+              type="digit"
+              value="{{settings.longitude}}"
+              placeholder="例如 120.1551"
+              placeholder-class="input__placeholder"
+              bindinput="onLongitudeInput"
+            />
+            <text class="field__hint">已收录 174 个城市；城市与经度同时存在时以城市为准。</text>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <button class="primary-btn" loading="{{loading}}" bindtap="onSubmit">{{loading ? '正在排盘' : '开始排盘'}}</button>
+  </block>
+
+  <!-- ==================== 结果 ==================== -->
+  <block wx:else>
+    <view class="result-hero">
+      <view class="result-hero__glow"></view>
+
+      <view class="result-hero__tags">
+        <text class="tag tag--dark">当前命盘</text>
+        <text wx:if="{{vm.qiYunText}}" class="tag tag--dark">{{vm.qiYunText}}</text>
+      </view>
+
+      <text class="result-hero__kicker">八字排盘</text>
+      <text class="result-hero__name">{{vm.title}}</text>
+      <text class="result-hero__meta">{{vm.metaLine}}</text>
+
+      <view class="pillar-row">
+        <view wx:for="{{vm.pillars}}" wx:key="label" class="pillar">
+          <text class="pillar__label">{{item.label}}</text>
+          <text class="pillar__gz">{{item.gz}}</text>
+          <text class="pillar__meta">{{item.wuXing}}</text>
+          <text class="pillar__meta pillar__meta--soft">{{item.naYin}}</text>
+        </view>
+      </view>
+
+      <view class="conclusion">
+        <text class="conclusion__label">命局结论</text>
+        <text class="conclusion__headline">{{vm.headline}}</text>
+        <text wx:if="{{vm.conclusionDetail}}" class="conclusion__detail">{{vm.conclusionDetail}}</text>
+      </view>
+
+      <view class="metric-grid">
+        <view wx:for="{{vm.metrics}}" wx:key="label" class="metric">
+          <text class="metric__label">{{item.label}}</text>
+          <text class="metric__value">{{item.value}}</text>
+          <text wx:if="{{item.note}}" class="metric__note">{{item.note}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 四柱全览 -->
+    <paper-card title="四柱全览" hint="年 · 月 · 日 · 时">
+      <view wx:for="{{vm.pillars}}" wx:key="label" class="pillar-detail">
+        <view class="pillar-detail__head">
+          <text class="pillar-detail__label">{{item.label}}</text>
+          <text class="pillar-detail__gz">{{item.gz}}</text>
+          <text class="pillar-detail__shishen">{{item.shiShen}}</text>
+        </view>
+        <view class="pillar-detail__body">
+          <view class="kv">
+            <text class="kv__k">纳音</text>
+            <text class="kv__v">{{item.naYin}}</text>
+          </view>
+          <view class="kv">
+            <text class="kv__k">空亡</text>
+            <text class="kv__v">{{item.kongWang}}</text>
+          </view>
+          <view class="kv">
+            <text class="kv__k">地支十神</text>
+            <text class="kv__v">{{item.zhiShiShenText}}</text>
+          </view>
+          <view class="kv kv--wrap">
+            <text class="kv__k">藏干</text>
+            <view class="tag-list">
+              <text
+                wx:for="{{item.cangGanList}}"
+                wx:for-item="cangGan"
+                wx:key="gan"
+                class="tag"
+              >{{cangGan.gan}} · {{cangGan.shiShen}}</text>
+            </view>
+          </view>
+          <view wx:if="{{vm.showShenSha && item.shenSha.length}}" class="kv kv--wrap">
+            <text class="kv__k">神煞</text>
+            <view class="tag-list">
+              <text
+                wx:for="{{item.shenSha}}"
+                wx:for-item="sha"
+                wx:key="*this"
+                class="tag tag--warn"
+              >{{sha}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="divider"></view>
+      <view class="kv"><text class="kv__k">公历</text><text class="kv__v">{{vm.solar}}</text></view>
+      <view class="kv"><text class="kv__k">农历</text><text class="kv__v">{{vm.lunar}}</text></view>
+      <view class="kv"><text class="kv__k">节气</text><text class="kv__v">{{vm.extra.jiJie}}</text></view>
+    </paper-card>
+
+    <!-- 五行与命局 -->
+    <paper-card title="五行与命局" hint="身强弱 · 格局">
+      <view class="wuxing">
+        <view wx:for="{{vm.wuXingBars}}" wx:key="name" class="wuxing__row">
+          <text class="wuxing__name">{{item.name}}</text>
+          <view class="wuxing__track">
+            <view
+              class="wuxing__fill"
+              style="width: {{item.percent}}%; background-color: {{item.color}};"
+            ></view>
+          </view>
+          <text class="wuxing__count">{{item.count}}</text>
+        </view>
+      </view>
+
+      <view class="divider"></view>
+      <view class="kv"><text class="kv__k">旺衰</text><text class="kv__v">{{vm.wuXingSummary.wangShuai}}</text></view>
+      <view class="kv"><text class="kv__k">缺失</text><text class="kv__v">{{vm.wuXingSummary.queShi}}</text></view>
+      <view class="kv"><text class="kv__k">喜用神</text><text class="kv__v">{{vm.wuXingSummary.xiYongShen}}</text></view>
+
+      <block wx:if="{{vm.shenQiang}}">
+        <view class="divider"></view>
+        <view class="highlight">
+          <text class="highlight__value">{{vm.shenQiang.result}}</text>
+          <text class="highlight__score">评分 {{vm.shenQiang.score}}</text>
+          <text class="highlight__desc">{{vm.shenQiang.analysis}}</text>
+        </view>
+      </block>
+
+      <block wx:if="{{vm.geJu}}">
+        <view class="divider"></view>
+        <view class="highlight">
+          <text class="highlight__value">{{vm.geJu.name}}</text>
+          <text class="highlight__desc">{{vm.geJu.meaning}}</text>
+        </view>
+        <view class="kv-grid">
+          <view class="kv-box"><text class="kv-box__k">用神</text><text class="kv-box__v">{{vm.geJu.yongShen}}</text></view>
+          <view class="kv-box"><text class="kv-box__k">喜神</text><text class="kv-box__v">{{vm.geJu.xiShen}}</text></view>
+          <view class="kv-box"><text class="kv-box__k">忌神</text><text class="kv-box__v">{{vm.geJu.jiShen}}</text></view>
+          <view class="kv-box"><text class="kv-box__k">仇神</text><text class="kv-box__v">{{vm.geJu.chouShen}}</text></view>
+        </view>
+      </block>
+    </paper-card>
+
+    <!-- 大运流年 -->
+    <paper-card title="大运流年" hint="当前周期优先">
+      <scroll-view scroll-x class="timeline" enhanced show-scrollbar="{{false}}">
+        <view class="timeline__inner">
+          <view
+            wx:for="{{vm.daYunWindow}}"
+            wx:key="ganZhi"
+            class="dayun-card {{item.active ? 'dayun-card--active' : ''}}"
+          >
+            <text class="dayun-card__age">{{item.ageRange}}</text>
+            <text class="dayun-card__gz">{{item.ganZhi}}</text>
+            <text class="dayun-card__meta">{{item.shiShen}}</text>
+            <text wx:if="{{item.shenShaText}}" class="dayun-card__sha">{{item.shenShaText}}</text>
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="divider"></view>
+      <text class="sub-title">大运序列</text>
+      <view class="dayun-grid">
+        <view
+          wx:for="{{vm.daYunAll}}"
+          wx:key="ganZhi"
+          class="dayun-mini {{item.active ? 'dayun-mini--active' : ''}}"
+        >
+          <text class="dayun-mini__gz">{{item.ganZhi}}</text>
+          <text class="dayun-mini__meta">{{item.shiShen}}</text>
+          <text class="dayun-mini__age">{{item.ageRange}}</text>
+        </view>
+      </view>
+
+      <block wx:if="{{vm.liuNian.length}}">
+        <view class="divider"></view>
+        <text class="sub-title">近期流年</text>
+        <view class="liunian-list">
+          <view
+            wx:for="{{vm.liuNian}}"
+            wx:key="year"
+            class="liunian {{item.current ? 'liunian--active' : ''}}"
+          >
+            <view class="col">
+              <text class="liunian__year">{{item.year}}</text>
+              <text class="liunian__meta">{{item.shiShen}} · {{item.age}} 岁</text>
+            </view>
+            <text class="liunian__gz">{{item.ganZhi}}</text>
+          </view>
+        </view>
+      </block>
+    </paper-card>
+
+    <!-- 附加信息 -->
+    <view class="advanced">
+      <view class="advanced__head" bindtap="onToggleSection" data-key="extra">
+        <view class="col">
+          <text class="advanced__kicker">附记</text>
+          <text class="advanced__title">胎元 · 命宫 · 人元</text>
+        </view>
+        <text class="advanced__action">{{openSections.extra ? '收起' : '展开'}}</text>
+      </view>
+      <view wx:if="{{openSections.extra}}" class="advanced__body">
+        <view class="kv"><text class="kv__k">胎元</text><text class="kv__v">{{vm.extra.taiYuan}}</text></view>
+        <view class="kv"><text class="kv__k">命宫</text><text class="kv__v">{{vm.extra.mingGong}}</text></view>
+        <view class="kv"><text class="kv__k">身宫</text><text class="kv__v">{{vm.extra.shenGong}}</text></view>
+        <view class="kv"><text class="kv__k">人元司令</text><text class="kv__v">{{vm.extra.renYuan}}</text></view>
+        <view wx:if="{{vm.showShenSha}}" class="kv kv--wrap">
+          <text class="kv__k">神煞汇总</text>
+          <view class="tag-list">
+            <text wx:for="{{vm.shenShaAll}}" wx:key="*this" class="tag tag--warn">{{item}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- AI 批注 -->
+    <view class="ai-card">
+      <view class="ai-card__head">
+        <view class="col">
+          <text class="ai-card__kicker">AI 批注</text>
+          <text class="ai-card__title">命理解读</text>
+        </view>
+        <text wx:if="{{ai.open}}" class="ai-card__action" bindtap="onCloseAI">收起</text>
+      </view>
+
+      <text wx:if="{{!ai.open}}" class="ai-card__desc">
+        基于当前命盘生成整体批注：核心判断、依据与可执行建议。
+      </text>
+
+      <view wx:if="{{!ai.open}}" class="ai-btn" bindtap="onAskAI">生成批注</view>
+
+      <block wx:if="{{ai.open}}">
+        <view wx:if="{{ai.loading}}" class="ai-loading">
+          <view class="ai-loading__dots">
+            <view class="ai-loading__dot"></view>
+            <view class="ai-loading__dot"></view>
+            <view class="ai-loading__dot"></view>
+          </view>
+          <text class="ai-loading__text">正在解读命盘…</text>
+        </view>
+        <text wx:elif="{{ai.error}}" class="ai-error">{{ai.error}}</text>
+        <block wx:else>
+          <text class="ai-content" user-select>{{ai.content}}</text>
+          <view class="ai-btn ai-btn--ghost" bindtap="onCopyAI">复制批注</view>
+        </block>
+      </block>
+    </view>
+
+    <view class="action-bar">
+      <view class="ghost-btn" bindtap="onReset">重新排盘</view>
+      <button class="primary-btn primary-btn--inline" bindtap="onCopyReport">复制报告</button>
+    </view>
+
+    <view class="footnote safe-area-bottom">
+      <text>排盘结果仅供学习研究与功能演示，请理性看待。</text>
+    </view>
+  </block>
+</view>
